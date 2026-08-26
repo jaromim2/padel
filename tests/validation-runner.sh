@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/var/www/padel"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="${GITHUB_WORKSPACE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 cd "$ROOT"
 
 mapfile -t changed_files < <(git status --porcelain=v1 | awk '{print $2}' | sed '/^$/d')
