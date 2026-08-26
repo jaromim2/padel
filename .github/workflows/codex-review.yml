@@ -99,13 +99,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
           pr_number="${{ github.event.pull_request.number }}"
           review_file="$RUNNER_TEMP/codex-review-output.md"
           if [ ! -s "$review_file" ]; then
             echo "Codex review output is empty."
             exit 1
           fi
-          labels="$(gh pr view "$pr_number" --json labels --jq '.labels[].name' || true)"
+          labels="$(gh pr view "$pr_number" --repo "$repo" --json labels --jq '.labels[].name' || true)"
           has_tests_passed=0
           has_human_review=0
           for label in $labels; do
@@ -122,13 +123,13 @@ jobs:
           fi
           case "$state" in
             approve)
-              gh pr review "$pr_number" --approve --body-file "$review_file"
-              gh pr edit "$pr_number" --add-label "user-testing"
+              gh pr review "$pr_number" --repo "$repo" --approve --body-file "$review_file"
+              gh pr edit "$pr_number" --repo "$repo" --add-label "user-testing"
               ;;
             request_changes)
-              gh pr review "$pr_number" --request-changes --body-file "$review_file"
+              gh pr review "$pr_number" --repo "$repo" --request-changes --body-file "$review_file"
               ;;
             *)
-              gh pr review "$pr_number" --comment --body-file "$review_file"
+              gh pr review "$pr_number" --repo "$repo" --comment --body-file "$review_file"
               ;;
           esac
