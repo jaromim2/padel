@@ -26,4 +26,3 @@ ensure_analysis_service() {
   start_analysis_service
   wait_for_analysis_service
 }
-
