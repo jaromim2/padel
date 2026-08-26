@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/var/www/padel"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="${GITHUB_WORKSPACE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 SITE_DIR="$ROOT/site"
 COOKIE_JAR="/tmp/padel-feedback-cookie.txt"
 DRY_RUN_JSON="/tmp/padel-feedback-dry-run.json"

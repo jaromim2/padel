@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/var/www/padel"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="${GITHUB_WORKSPACE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 start_analysis_service() {
   docker compose -f "$ROOT/padel-analysis-service/docker-compose.yml" up -d --build padel-analysis-service >/tmp/padel-analysis-service-start.log 2>&1
