@@ -12,6 +12,8 @@ jobs:
     if: >
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.repo.full_name == github.repository
+    outputs:
+      review_body: ${{ steps.collect_review.outputs.review_body }}
     permissions:
       contents: read
       pull-requests: read
@@ -68,12 +70,20 @@ jobs:
           prompt-file: ${{ runner.temp }}/codex-review-${{ github.event.pull_request.number }}.md
           output-file: ${{ runner.temp }}/codex-review-output.md
 
-      - name: Upload Codex review output
-        uses: actions/upload-artifact@v4
-        with:
-          name: codex-review-output-${{ github.event.pull_request.number }}
-          path: ${{ runner.temp }}/codex-review-output.md
-          if-no-files-found: error
+      - name: Collect Codex review output
+        id: collect_review
+        run: |
+          set -euo pipefail
+          review_file="$RUNNER_TEMP/codex-review-output.md"
+          if [ ! -s "$review_file" ]; then
+            echo "Codex review output is empty."
+            exit 1
+          fi
+          {
+            echo 'review_body<<EOF'
+            cat "$review_file"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
 
   post_review:
     needs: codex_review
@@ -86,24 +96,21 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      - name: Download Codex review output
-        uses: actions/download-artifact@v4
-        with:
-          name: codex-review-output-${{ github.event.pull_request.number }}
-          path: ${{ runner.temp }}
-
       - name: Post review result to PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEW_BODY: ${{ needs.codex_review.outputs.review_body }}
         run: |
           set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
           pr_number="${{ github.event.pull_request.number }}"
           review_file="$RUNNER_TEMP/codex-review-output.md"
+          printf '%s\n' "$REVIEW_BODY" > "$review_file"
           if [ ! -s "$review_file" ]; then
             echo "Codex review output is empty."
             exit 1
           fi
-          labels="$(gh pr view "$pr_number" --json labels --jq '.labels[].name' || true)"
+          labels="$(gh pr view "$pr_number" --repo "$repo" --json labels --jq '.labels[].name' || true)"
           has_tests_passed=0
           has_human_review=0
           for label in $labels; do
@@ -120,13 +127,13 @@ jobs:
           fi
           case "$state" in
             approve)
-              gh pr review "$pr_number" --approve --body-file "$review_file"
-              gh pr edit "$pr_number" --add-label "user-testing"
+              gh pr review "$pr_number" --repo "$repo" --approve --body-file "$review_file"
+              gh pr edit "$pr_number" --repo "$repo" --add-label "user-testing"
               ;;
             request_changes)
-              gh pr review "$pr_number" --request-changes --body-file "$review_file"
+              gh pr review "$pr_number" --repo "$repo" --request-changes --body-file "$review_file"
               ;;
             *)
-              gh pr review "$pr_number" --comment --body-file "$review_file"
+              gh pr review "$pr_number" --repo "$repo" --comment --body-file "$review_file"
               ;;
           esac
