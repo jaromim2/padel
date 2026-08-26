@@ -1,0 +1,167 @@
+.padel-match-shell .padel-match-preview {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #04080c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.padel-preview-controls,
+.padel-preview-timeline,
+.padel-preview-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.padel-preview-controls {
+  margin: 10px 0 12px;
+  align-items: center;
+}
+
+.padel-preview-timeline {
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.padel-preview-seek {
+  width: 100%;
+}
+
+.padel-preview-thumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 88px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  cursor: pointer;
+}
+
+.padel-preview-thumb.is-selected {
+  border-color: rgba(74, 220, 180, 0.8);
+  background: rgba(74, 220, 180, 0.15);
+}
+
+.padel-match-preview-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 520px;
+  object-fit: contain;
+  position: relative;
+  z-index: 1;
+}
+
+.padel-match-preview-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.padel-match-box {
+  position: absolute;
+  border: 2px solid rgba(135, 244, 223, 0.85);
+  background: rgba(135, 244, 223, 0.14);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0;
+  pointer-events: auto;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.padel-match-box span {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  font-size: 11px;
+  background: rgba(4, 8, 12, 0.82);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.padel-match-box:not(.is-selectable) {
+  cursor: default;
+}
+
+.padel-match-box.is-selected {
+  border-color: rgba(255, 220, 142, 0.95);
+  background: rgba(255, 220, 142, 0.18);
+}
+
+.padel-match-candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.padel-match-candidate-card {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(4, 8, 12, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.padel-match-candidate-card.is-real {
+  border-color: rgba(127, 240, 165, 0.45);
+}
+
+.padel-match-candidate-card.is-false {
+  border-color: rgba(255, 141, 141, 0.45);
+}
+
+.padel-match-candidate-card.is-missed {
+  border-color: rgba(255, 220, 142, 0.45);
+}
+
+.padel-match-candidate-card.is-unclear {
+  border-color: rgba(150, 190, 255, 0.45);
+}
+
+.padel-match-candidate-media {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.padel-match-thumbnail,
+.padel-match-clip {
+  width: 100%;
+  border-radius: 14px;
+  background: #000;
+}
+
+.padel-match-candidate-meta,
+.padel-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.padel-match-candidate-meta span,
+.padel-match-candidate-card h5 {
+  color: #fff;
+}
+
+.padel-review-actions .padel-button.secondary {
+  padding: 9px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.padel-match-card .padel-result-detail {
+  margin-top: 14px;
+}
+
+.padel-match-card .padel-result-section {
+  margin-top: 12px;
+}

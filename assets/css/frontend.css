@@ -1,0 +1,779 @@
+.padel-video-analysis-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 18px 60px;
+  color: #f5f7fb;
+  font-family: inherit;
+}
+
+.padel-video-analysis-shell,
+.padel-video-analysis-shell * {
+  box-sizing: border-box;
+}
+
+.padel-video-analysis-shell {
+  background:
+    radial-gradient(circle at top right, rgba(62, 190, 165, 0.22), transparent 26%),
+    radial-gradient(circle at left center, rgba(22, 90, 84, 0.18), transparent 30%),
+    linear-gradient(180deg, #07111a 0%, #08131d 52%, #07111a 100%);
+  border-radius: 28px;
+}
+
+.padel-video-analysis-hero {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+
+.padel-kicker {
+  color: #8edfd0;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 12px;
+  margin: 0 0 6px;
+}
+
+.padel-video-analysis-hero h1 {
+  font-size: clamp(32px, 5vw, 56px);
+  line-height: 1;
+  margin: 0 0 12px;
+  color: #f8fbff;
+}
+
+.padel-lead {
+  margin: 0;
+  max-width: 620px;
+  color: rgba(245, 247, 251, 0.8);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.padel-hero-chip {
+  min-width: 180px;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+}
+
+.padel-hero-chip span,
+.padel-hero-chip strong {
+  display: block;
+}
+
+.padel-hero-chip span {
+  font-size: 12px;
+  color: rgba(245, 247, 251, 0.7);
+  margin-bottom: 4px;
+}
+
+.padel-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.padel-card {
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.24);
+}
+
+.padel-card h2 {
+  margin: 0 0 16px;
+  font-size: 22px;
+  color: #fff;
+}
+
+.padel-form {
+  display: grid;
+  gap: 14px;
+}
+
+.padel-form label {
+  display: grid;
+  gap: 8px;
+  color: rgba(245, 247, 251, 0.95);
+  font-size: 14px;
+}
+
+.padel-form input,
+.padel-form select {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(4, 8, 12, 0.6);
+  color: #fff;
+  padding: 14px 16px;
+  font: inherit;
+}
+
+.padel-form small {
+  color: rgba(245, 247, 251, 0.65);
+}
+
+.padel-button {
+  appearance: none;
+  border: 0;
+  border-radius: 16px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #87f4df 0%, #5fd0bf 100%);
+  color: #041017;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.padel-button.secondary {
+  background: transparent;
+  color: #d8ffff;
+  border: 1px solid rgba(134, 244, 223, 0.3);
+}
+
+.padel-progress-wrap {
+  margin-top: 6px;
+  display: grid;
+  gap: 8px;
+}
+
+.padel-progress-wrap.small {
+  margin-top: 14px;
+}
+
+.padel-progress-meta,
+.padel-analysis-meta,
+.padel-analysis-submeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: rgba(245, 247, 251, 0.72);
+  font-size: 13px;
+}
+
+.padel-progress-bar {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.padel-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #87f4df 0%, #5ad4be 100%);
+  transition: width 0.25s ease;
+}
+
+.padel-message {
+  min-height: 24px;
+  margin: 4px 0 0;
+  color: #9ff0df;
+}
+
+.padel-message.is-error {
+  color: #ffb3b3;
+}
+
+.padel-active-analysis {
+  display: grid;
+  gap: 14px;
+}
+
+.padel-empty {
+  color: rgba(245, 247, 251, 0.72);
+  margin: 0;
+}
+
+.padel-analysis-card {
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(2, 9, 14, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.padel-analysis-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.padel-analysis-head h3 {
+  margin: 4px 0 0;
+  color: #fff;
+  font-size: 18px;
+}
+
+.padel-card-kicker {
+  margin: 0;
+  color: rgba(245, 247, 251, 0.55);
+  font-size: 12px;
+}
+
+.padel-status-badge {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.padel-status-badge.is-uploaded {
+  background: rgba(135, 244, 223, 0.14);
+  color: #87f4df;
+}
+
+.padel-status-badge.is-processing {
+  background: rgba(255, 205, 102, 0.15);
+  color: #ffdc8e;
+}
+
+.padel-status-badge.is-awaiting_player_selection {
+  background: rgba(142, 223, 208, 0.14);
+  color: #87f4df;
+}
+
+.padel-status-badge.is-completed {
+  background: rgba(114, 235, 156, 0.16);
+  color: #7ff0a5;
+}
+
+.padel-status-badge.is-failed {
+  background: rgba(255, 120, 120, 0.16);
+  color: #ff8d8d;
+}
+
+.padel-analysis-meta,
+.padel-analysis-submeta {
+  margin-top: 12px;
+}
+
+.padel-result {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(245, 247, 251, 0.9);
+}
+
+.padel-result ul {
+  margin: 10px 0 0;
+  padding-inline-start: 18px;
+}
+
+.padel-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.padel-result-detail {
+  margin-top: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.padel-result-section {
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.padel-review-hub,
+.padel-review-panel,
+.padel-calibration-summary {
+  margin-top: 18px;
+}
+
+.padel-review-panel summary,
+.padel-calibration-summary summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: #f7fbff;
+}
+
+.padel-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.padel-review-grid.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.padel-review-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.padel-review-grid select,
+.padel-review-grid textarea,
+.padel-review-grid input {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(4, 8, 12, 0.72);
+  color: #fff;
+  padding: 12px 14px;
+  font: inherit;
+}
+
+.padel-review-item-list,
+.padel-review-manual-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.padel-review-item,
+.padel-review-manual-row {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(3, 9, 14, 0.56);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.padel-review-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.padel-review-item-head span,
+.padel-review-item-meta,
+.padel-review-evidence {
+  color: rgba(245, 247, 251, 0.66);
+  font-size: 13px;
+}
+
+.padel-review-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  color: rgba(245, 247, 251, 0.84);
+  font-size: 13px;
+}
+
+.padel-review-flags label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.padel-review-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.padel-review-summary-table {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.padel-review-summary-head,
+.padel-review-summary-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.5fr) repeat(7, minmax(60px, 0.7fr));
+  gap: 10px;
+  align-items: center;
+}
+
+.padel-review-summary-head {
+  color: rgba(245, 247, 251, 0.8);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.padel-review-summary-row {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(4, 8, 12, 0.56);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.padel-review-summary-row strong {
+  color: #fff;
+  font-size: 13px;
+}
+
+.padel-review-summary-row span {
+  color: rgba(245, 247, 251, 0.72);
+  font-size: 13px;
+}
+
+.padel-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+
+.padel-section-head h4,
+.padel-result-section h4 {
+  margin: 0;
+  font-size: 18px;
+  color: #fff;
+}
+
+.padel-help-note,
+.padel-original-contact {
+  margin: 10px 0 0;
+  color: rgba(245, 247, 251, 0.7);
+  font-size: 13px;
+}
+
+.padel-annotated-video {
+  width: 100%;
+  max-height: 520px;
+  border-radius: 18px;
+  background: #000;
+}
+
+.padel-summary-grid,
+.padel-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.padel-metric-grid.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.padel-summary-card,
+.padel-stat,
+.padel-metric-card {
+  border-radius: 14px;
+  background: rgba(4, 8, 12, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 12px;
+}
+
+.padel-summary-card span,
+.padel-stat span,
+.padel-measure-row span {
+  display: block;
+  color: rgba(245, 247, 251, 0.65);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.padel-summary-card strong,
+.padel-stat strong {
+  color: #fff;
+  font-size: 16px;
+}
+
+.padel-metric-card h5 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: #87f4df;
+}
+
+.padel-measure-row {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.padel-measure-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.padel-measure-row strong {
+  color: #fff;
+  font-size: 15px;
+}
+
+.padel-measure-row small {
+  color: rgba(245, 247, 251, 0.6);
+}
+
+.padel-measure-row.unavailable strong {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.padel-phase-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.padel-phase-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1.3fr 0.7fr 0.7fr 0.5fr;
+  gap: 10px;
+  align-items: center;
+  text-align: right;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(3, 8, 12, 0.65);
+  color: #fff;
+  cursor: pointer;
+}
+
+.padel-phase-row .phase-label {
+  color: #87f4df;
+  font-weight: 700;
+}
+
+.padel-phase-row .phase-frame,
+.padel-phase-row .phase-time,
+.padel-phase-row .phase-confidence {
+  color: rgba(245, 247, 251, 0.76);
+  font-size: 13px;
+}
+
+.padel-contact-copy,
+.padel-contact-stepper {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.padel-contact-copy > div {
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(4, 8, 12, 0.55);
+}
+
+.padel-contact-copy strong {
+  display: block;
+  color: #87f4df;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.padel-contact-copy p,
+.padel-contact-preview {
+  margin: 0;
+  color: #fff;
+}
+
+.padel-contact-editor {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.padel-contact-editor label {
+  display: grid;
+  gap: 8px;
+}
+
+.padel-contact-editor input[type='range'] {
+  width: 100%;
+}
+
+.padel-contact-stepper {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.padel-technical-details {
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.padel-technical-details summary {
+  cursor: pointer;
+  color: #87f4df;
+  font-weight: 700;
+}
+
+.padel-technical-details pre {
+  overflow: auto;
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(2, 6, 10, 0.9);
+  color: #d8ffff;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+}
+
+.padel-technical-feedback {
+  display: grid;
+  gap: 14px;
+}
+
+.padel-feedback-summary {
+  margin: 0;
+  color: rgba(231, 255, 250, 0.9);
+}
+
+.padel-feedback-list {
+  display: grid;
+  gap: 12px;
+}
+
+.padel-feedback-card {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(4, 8, 12, 0.6);
+  border: 1px solid rgba(135, 244, 223, 0.14);
+}
+
+.padel-feedback-card.is-high {
+  border-color: rgba(135, 244, 223, 0.35);
+}
+
+.padel-feedback-card.is-medium {
+  border-color: rgba(124, 210, 255, 0.32);
+}
+
+.padel-feedback-card.is-low {
+  border-color: rgba(255, 208, 128, 0.26);
+}
+
+.padel-feedback-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.padel-feedback-head h5 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.padel-feedback-head p {
+  margin: 0;
+  color: rgba(231, 255, 250, 0.92);
+}
+
+.padel-feedback-badges,
+.padel-feedback-phases,
+.padel-feedback-evidence,
+.padel-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.padel-feedback-confidence,
+.padel-feedback-importance,
+.padel-feedback-phase-chip,
+.padel-feedback-evidence-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(135, 244, 223, 0.1);
+  border: 1px solid rgba(135, 244, 223, 0.18);
+  color: #d9fffb;
+  font-size: 12px;
+}
+
+.padel-feedback-importance {
+  background: rgba(124, 210, 255, 0.12);
+}
+
+.padel-feedback-meta {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+  color: rgba(231, 255, 250, 0.88);
+  font-size: 13px;
+}
+
+.padel-feedback-limitations {
+  margin: 10px 0 0;
+  color: rgba(196, 223, 220, 0.9);
+  font-size: 12px;
+}
+
+.padel-feedback-withheld {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.padel-feedback-withheld summary {
+  cursor: pointer;
+  color: #87f4df;
+  font-weight: 700;
+}
+
+.padel-feedback-withheld ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: rgba(231, 255, 250, 0.9);
+}
+
+.padel-feedback-withheld li {
+  margin-bottom: 8px;
+}
+
+.padel-feedback-muted {
+  color: rgba(196, 223, 220, 0.7);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .padel-grid,
+  .padel-video-analysis-hero {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .padel-hero-chip {
+    width: 100%;
+  }
+
+  .padel-summary-grid,
+  .padel-metric-grid,
+  .padel-metric-grid.compact,
+  .padel-contact-copy,
+  .padel-contact-stepper {
+    grid-template-columns: 1fr;
+  }
+
+  .padel-phase-row {
+    grid-template-columns: 1fr;
+    text-align: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .padel-video-analysis-shell {
+    padding: 18px 12px 48px;
+    border-radius: 18px;
+  }
+
+  .padel-card {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .padel-analysis-head,
+  .padel-analysis-meta,
+  .padel-analysis-submeta {
+    flex-direction: column;
+  }
+}

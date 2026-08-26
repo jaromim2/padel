@@ -1,0 +1,213 @@
+{
+  "version": "technical-feedback-v1",
+  "rules": [
+    {
+      "id": "late_preparation",
+      "family": "preparation",
+      "metric": "prep_start_ratio_to_contact",
+      "comparison": "ratio_greater_than",
+      "provisional_threshold": 0.32,
+      "minimum_capability_confidence": "medium",
+      "explanation": "Requires reliable stroke phase timing and a valid ready-to-contact window.",
+      "status": "experimental",
+      "version": "technical-feedback-v1",
+      "unit": "ratio",
+      "output_kind": "finding",
+      "supported_camera_angles": ["side", "baseline", "diagonal"],
+      "notes": [
+        "Measured as preparation-start frame divided by contact-estimate frame.",
+        "Higher ratios indicate later preparation relative to the contact moment."
+      ],
+      "required_capabilities": [
+        "stroke_phases"
+      ]
+    },
+    {
+      "id": "limited_shoulder_rotation",
+      "family": "shoulder_rotation",
+      "metric": "shoulder_rotation_prep_to_contact",
+      "comparison": "absolute_less_than",
+      "provisional_threshold": 24.0,
+      "minimum_capability_confidence": "medium",
+      "explanation": "Requires reliable shoulder rotation measurements around the stroke window.",
+      "status": "experimental",
+      "version": "technical-feedback-v1",
+      "unit": "degrees",
+      "output_kind": "finding",
+      "supported_camera_angles": ["side", "baseline"],
+      "notes": [
+        "Measured as the absolute change in shoulder-line orientation between preparation and contact.",
+        "Lower changes indicate a more limited trunk/shoulder rotation window."
+      ],
+      "required_capabilities": [
+        "shoulder_rotation"
+      ]
+    },
+    {
+      "id": "limited_follow_through_rotation",
+      "family": "shoulder_rotation",
+      "metric": "shoulder_rotation_contact_to_follow_through",
+      "comparison": "absolute_less_than",
+      "provisional_threshold": 18.0,
+      "minimum_capability_confidence": "medium",
+      "explanation": "Requires reliable shoulder rotation measurements after contact.",
+      "status": "experimental",
+      "version": "technical-feedback-v1",
+      "unit": "degrees",
+      "output_kind": "finding",
+      "supported_camera_angles": ["side", "baseline"],
+      "notes": [
+        "Measured as the absolute change in shoulder-line orientation between contact and follow-through.",
+        "Lower changes indicate a smaller post-contact trunk rotation window."
+      ],
+      "required_capabilities": [
+        "shoulder_rotation"
+      ]
+    },
+    {
+      "id": "limited_hip_rotation",
+      "family": "hip_rotation",
+      "metric": "hip_rotation_prep_to_contact",
+      "comparison": "absolute_less_than",
+      "provisional_threshold": 18.0,
+      "minimum_capability_confidence": "medium",
+      "explanation": "Requires reliable hip rotation measurements around the stroke window.",
+      "status": "experimental",
+      "version": "technical-feedback-v1",
+      "unit": "degrees",
+      "output_kind": "finding",
+      "supported_camera_angles": ["side", "baseline"],
+      "notes": [
+        "Measured as the absolute change in hip-line orientation between preparation and contact.",
+        "Lower changes indicate a more limited hip turn."
+      ],
+      "required_capabilities": [
+        "hip_rotation"
+      ]
+    },
+    {
+      "id": "shoulder_hip_sequence_difference",
+      "family": "rotation_sequence",
+      "metric": "shoulder_hip_rotation_gap",
+      "comparison": "absolute_greater_than",
+      "provisional_threshold": 16.0,
+      "minimum_capability_confidence": "medium",
+      "explanation": "Requires reliable shoulder and hip rotation measurements in the same stroke window.",
+      "status": "experimental",
+      "version": "technical-feedback-v1",
+      "unit": "degrees",
+      "output_kind": "neutral_measurement",
+      "supported_camera_angles": ["side", "baseline"],
+      "notes": [
+        "Measured as the absolute gap between shoulder and hip rotation deltas from preparation to contact.",
+        "Large gaps indicate the two segments are not rotating with a similar sequence window."
+      ],
+      "required_capabilities": [
+        "shoulder_rotation",
+        "hip_rotation"
+      ]
+    },
+    {
+      "id": "limited_knee_bend",
+      "family": "knee_bend",
+      "metric": "knee_angle_at_contact",
+      "comparison": "greater_than",
+      "provisional_threshold": 160.0,
+      "minimum_capability_confidence": "medium",
+      "explanation": "Requires knee-angle measurement on the visible side being evaluated.",
+      "status": "experimental",
+      "version": "technical-feedback-v1",
+      "unit": "degrees",
+      "output_kind": "finding",
+      "supported_camera_angles": ["side", "baseline"],
+      "notes": [
+        "Evaluated independently for each side that is visible and reliable.",
+        "Larger angles indicate a straighter knee at contact."
+      ],
+      "required_capabilities": [
+        "knee_angles.left",
+        "knee_angles.right"
+      ]
+    },
+    {
+      "id": "arm_too_folded_at_contact",
+      "family": "arm_extension",
+      "metric": "dominant_elbow_angle_at_contact",
+      "comparison": "less_than",
+      "provisional_threshold": 150.0,
+      "minimum_capability_confidence": "medium",
+      "explanation": "Requires a reliable dominant-elbow angle at contact.",
+      "status": "experimental",
+      "version": "technical-feedback-v1",
+      "unit": "degrees",
+      "output_kind": "finding",
+      "supported_camera_angles": ["side", "baseline"],
+      "notes": [
+        "Lower angles indicate a more folded hitting arm at contact."
+      ],
+      "required_capabilities": [
+        "elbow_angles"
+      ]
+    },
+    {
+      "id": "arm_near_full_extension_at_contact",
+      "family": "arm_extension",
+      "metric": "dominant_elbow_angle_at_contact",
+      "comparison": "greater_than",
+      "provisional_threshold": 173.0,
+      "minimum_capability_confidence": "medium",
+      "explanation": "Requires a reliable dominant-elbow angle at contact.",
+      "status": "experimental",
+      "version": "technical-feedback-v1",
+      "unit": "degrees",
+      "output_kind": "finding",
+      "supported_camera_angles": ["side", "baseline"],
+      "notes": [
+        "Higher angles indicate a near-straight arm at contact."
+      ],
+      "required_capabilities": [
+        "elbow_angles"
+      ]
+    },
+    {
+      "id": "unstable_finish",
+      "family": "balance_recovery",
+      "metric": "balance_proxy_score",
+      "comparison": "less_than",
+      "provisional_threshold": 0.65,
+      "minimum_capability_confidence": "medium",
+      "explanation": "Requires a reliable balance proxy over the finish window.",
+      "status": "experimental",
+      "version": "technical-feedback-v1",
+      "unit": "score",
+      "output_kind": "finding",
+      "supported_camera_angles": ["side", "baseline", "diagonal"],
+      "notes": [
+        "Lower scores indicate more body drift or weaker support during the finish."
+      ],
+      "required_capabilities": [
+        "balance"
+      ]
+    },
+    {
+      "id": "slow_recovery",
+      "family": "balance_recovery",
+      "metric": "recovery_duration_ms",
+      "comparison": "greater_than",
+      "provisional_threshold": 180.0,
+      "minimum_capability_confidence": "medium",
+      "explanation": "Requires a reliable recovery phase and post-contact timing window.",
+      "status": "experimental",
+      "version": "technical-feedback-v1",
+      "unit": "milliseconds",
+      "output_kind": "finding",
+      "supported_camera_angles": ["side", "baseline", "diagonal"],
+      "notes": [
+        "Higher values indicate a longer time between follow-through and recovery."
+      ],
+      "required_capabilities": [
+        "recovery"
+      ]
+    }
+  ]
+}

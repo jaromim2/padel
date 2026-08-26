@@ -1,0 +1,46 @@
+services:
+  padel-analysis-service:
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      PADEL_ANALYSIS_SERVICE_DB_PATH: /data/jobs.sqlite3
+      PADEL_ANALYSIS_SERVICE_STORAGE_DIR: /data/storage
+      PADEL_ANALYSIS_SERVICE_MAX_DOWNLOAD_BYTES: 1073741824
+      PADEL_ANALYSIS_SERVICE_DOWNLOAD_TIMEOUT_SECONDS: 120
+      POSE_MODEL_PATH: /opt/mediapipe-models/pose_landmarker_lite.task
+    ports:
+      - "8010:8000"
+    volumes:
+      - padel-analysis-data:/data
+    extra_hosts:
+      - "padel.local:host-gateway"
+
+  padel-analysis-worker:
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      PADEL_ANALYSIS_SERVICE_URL: http://padel-analysis-service:8000
+      PADEL_ANALYSIS_SERVICE_DB_PATH: /data/jobs.sqlite3
+      PADEL_ANALYSIS_SERVICE_STORAGE_DIR: /data/storage
+      PADEL_ANALYSIS_SERVICE_MAX_DOWNLOAD_BYTES: 1073741824
+      PADEL_ANALYSIS_SERVICE_DOWNLOAD_TIMEOUT_SECONDS: 120
+      POSE_MODEL_PATH: /opt/mediapipe-models/pose_landmarker_lite.task
+    entrypoint:
+      - python
+      - -m
+      - app.worker
+    command:
+      - --poll
+      - --interval
+      - "2"
+    volumes:
+      - padel-analysis-data:/data
+    extra_hosts:
+      - "padel.local:host-gateway"
+
+volumes:
+  padel-analysis-data:

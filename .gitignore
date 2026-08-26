@@ -1,0 +1,10 @@
+/site/
+/padel-analysis-service/.env
+/site/.padel-credentials.txt
+/site/wp-config.php
+/.codex/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+.DS_Store

@@ -1,0 +1,1 @@
+"""Padel analysis service."""
