@@ -217,6 +217,10 @@ def _resolve_artifact_reference(result: dict[str, object], artifact_name: str) -
             selected = match_artifacts.get("tracking_preview_image")
             if isinstance(selected, dict):
                 return selected
+        if artifact_name == "tracking-preview-video":
+            selected = match_artifacts.get("tracking_preview_video")
+            if isinstance(selected, dict):
+                return selected
         if artifact_name == "metadata":
             selected = match_artifacts.get("metadata")
             if isinstance(selected, dict):

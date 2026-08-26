@@ -97,6 +97,7 @@ class MatchStrokeCandidate(BaseModel):
 class MatchArtifactBundle(BaseModel):
     preview_image: PoseArtifactReference | None = None
     tracking_preview_image: PoseArtifactReference | None = None
+    tracking_preview_video: PoseArtifactReference | None = None
     metadata: PoseArtifactReference | None = None
 
 

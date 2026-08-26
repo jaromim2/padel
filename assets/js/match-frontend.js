@@ -103,7 +103,9 @@
     const previewArtifact = artifacts.preview_image || null;
     if (!preview || !previewArtifact || !frames.length) return '';
 
-    const selectionRequired = match?.stage === 'selection_required';
+    const selectedCandidateId = match?.selected_player_candidate_id || record?.selected_player_candidate_id || '';
+    const selectionLocked = Boolean(selectedCandidateId);
+    const selectionRequired = match?.stage === 'selection_required' && !selectionLocked;
     const selectedFrame = selectedFrameIndex !== null
       ? frames.find((frame) => Number(frame.frame_index) === Number(selectedFrameIndex)) || frames[0]
       : getSelectedPreviewFrame(match, { dataset: { previewFrameIndex: String(match?.preview?.frame_index || frames[0].frame_index || 0) } });
@@ -124,17 +126,18 @@
           <span>${formatTimestamp(selectedFrame?.timestamp_ms ?? preview.timestamp_ms ?? 0)}</span>
         </div>
         <div class="padel-preview-controls">
-          <button type="button" class="padel-button secondary padel-preview-step" data-direction="prev">Previous</button>
-          <button type="button" class="padel-button secondary padel-preview-step" data-direction="next">Next</button>
-          <button type="button" class="padel-button padel-preview-confirm" data-analysis-id="${escapeHtml(record.id)}" data-selected-candidate-id="" disabled>Confirm player</button>
+          <button type="button" class="padel-button secondary padel-preview-step" data-direction="prev" ${selectionLocked ? 'disabled' : ''}>Previous</button>
+          <button type="button" class="padel-button secondary padel-preview-step" data-direction="next" ${selectionLocked ? 'disabled' : ''}>Next</button>
+          <button type="button" class="padel-button padel-preview-confirm" data-analysis-id="${escapeHtml(record.id)}" data-selected-candidate-id="${escapeHtml(selectedCandidateId)}" ${selectionLocked ? 'disabled' : 'disabled'}>${selectionLocked ? 'Player confirmed' : 'Confirm player'}</button>
         </div>
         <div class="padel-preview-timeline">
-          <input type="range" min="0" max="${Math.max(0, frames.length - 1)}" value="${Math.max(0, frames.findIndex((frame) => Number(frame.frame_index) === selectedFrameId))}" class="padel-preview-seek">
+          <input type="range" min="0" max="${Math.max(0, frames.length - 1)}" value="${Math.max(0, frames.findIndex((frame) => Number(frame.frame_index) === selectedFrameId))}" class="padel-preview-seek" ${selectionLocked ? 'disabled' : ''}>
           <div class="padel-preview-thumbs">
             ${frames.map((frame, index) => `
               <button
                 type="button"
                 class="padel-preview-thumb ${Number(frame.frame_index) === selectedFrameId ? 'is-selected' : ''}"
+                ${selectionLocked ? 'disabled' : ''}
                 data-preview-frame-index="${escapeHtml(frame.frame_index)}"
                 data-analysis-id="${escapeHtml(record.id)}"
                 title="${escapeHtml(`${formatTimestamp(frame.timestamp_ms)} · ${frame.candidates?.length || 0} candidates`)}"
@@ -147,8 +150,7 @@
         </div>
         <div class="padel-match-preview" data-preview-width="${escapeHtml(width)}" data-preview-height="${escapeHtml(height)}">
           <img
-            class="padel-match-preview-image"
-            src="${escapeHtml(selectedFrameArtifactUrl)}"
+            class="padel-match-preview-image padel-protected-media"
             data-artifact-url="${escapeHtml(selectedFrameArtifactUrl)}"
             width="${escapeHtml(width)}"
             height="${escapeHtml(height)}"
@@ -164,7 +166,7 @@
   }
 
   function loadProtectedMedia(element) {
-    if (!element || element.tagName === 'IMG' || element.dataset.loaded === '1' || element.getAttribute('src')) return;
+    if (!element || element.dataset.loaded === '1') return;
     const artifactUrl = element.dataset.artifactUrl;
     if (!artifactUrl) return;
 
@@ -200,9 +202,10 @@
     };
 
     element.addEventListener('error', directLoadFallback, { once: true });
-    element.src = artifactUrl;
-    if (typeof element.load === 'function') {
-      element.load();
+    if (element.tagName === 'IMG' || element.tagName === 'VIDEO') {
+      fallbackToBlob();
+    } else {
+      fallbackToBlob();
     }
   }
 
@@ -236,6 +239,9 @@
   function renderTracking(record, match) {
     const tracking = match?.tracking || null;
     if (!tracking) return '';
+    const artifacts = match?.artifacts || {};
+    const trackingVideo = artifacts.tracking_preview_video || null;
+    const trackingImage = artifacts.tracking_preview_image || null;
 
     const intervals = Array.isArray(tracking.missing_intervals) ? tracking.missing_intervals : [];
     return `
@@ -247,6 +253,15 @@
           <div class="padel-stat"><span>Confidence</span><strong>${escapeHtml(tracking.confidence_level || '—')}</strong></div>
           <div class="padel-stat"><span>Tracked frames</span><strong>${escapeHtml(tracking.tracked_frames ?? 0)} / ${escapeHtml(tracking.total_frames ?? 0)}</strong></div>
         </div>
+        ${trackingVideo ? `
+          <div class="padel-match-preview padel-tracking-preview">
+            <video class="padel-protected-video padel-tracking-video padel-protected-media" controls preload="none" playsinline data-artifact-url="${escapeHtml(buildArtifactUrl(record.id, 'tracking-preview-video'))}"></video>
+          </div>
+        ` : trackingImage ? `
+          <div class="padel-match-preview padel-tracking-preview">
+            <img class="padel-match-preview-image padel-protected-media" data-artifact-url="${escapeHtml(buildArtifactUrl(record.id, 'tracking-preview'))}" alt="Tracking preview">
+          </div>
+        ` : ''}
         ${intervals.length ? `<p class="padel-help-note">${escapeHtml(intervals.map((interval) => `${interval.start_frame}-${interval.end_frame}${interval.reason ? ` (${interval.reason})` : ''}`).join(' · '))}</p>` : ''}
       </section>
     `;
@@ -266,8 +281,8 @@
           <span>${formatNumber(candidate.confidence ?? null, 2)}</span>
         </div>
         <div class="padel-match-candidate-media">
-          <img class="padel-match-thumbnail" src="${escapeHtml(thumbnailUrl)}" data-artifact-url="${escapeHtml(thumbnailUrl)}" alt="${escapeHtml(candidate.candidate_id)} thumbnail">
-          <video class="padel-protected-video padel-match-clip" controls preload="none" playsinline src="${escapeHtml(clipUrl)}" data-artifact-url="${escapeHtml(clipUrl)}"></video>
+          <img class="padel-match-thumbnail padel-protected-media" data-artifact-url="${escapeHtml(thumbnailUrl)}" alt="${escapeHtml(candidate.candidate_id)} thumbnail">
+          <video class="padel-protected-video padel-match-clip padel-protected-media" controls preload="none" playsinline data-artifact-url="${escapeHtml(clipUrl)}"></video>
         </div>
         <div class="padel-match-candidate-meta">
           <span>Start ${formatTimestamp(candidate.start_timestamp_ms)}</span>
@@ -323,7 +338,7 @@
     const match = record.result?.match || null;
     const previewFrameIndex = Number(match?.preview?.frame_index || 0);
     const html = `
-      <article class="padel-analysis-card padel-match-card" data-analysis-id="${record.id}" data-status="${escapeHtml(record.status || '')}" data-preview-frame-index="${escapeHtml(previewFrameIndex)}" data-record='${escapeHtml(JSON.stringify(record))}'>
+      <article class="padel-analysis-card padel-match-card" data-analysis-id="${record.id}" data-status="${escapeHtml(record.status || '')}" data-preview-frame-index="${escapeHtml(previewFrameIndex)}" data-selected-candidate-id="${escapeHtml(match?.selected_player_candidate_id || '')}" data-record='${escapeHtml(JSON.stringify(record))}'>
         <div class="padel-analysis-head">
           <div>
             <p class="padel-card-kicker">Match #${escapeHtml(record.id)}</p>
@@ -360,12 +375,13 @@
     }
 
     const card = activeWrap?.querySelector(`[data-analysis-id="${record.id}"]`);
-    card?.querySelectorAll('.padel-protected-video').forEach(loadProtectedMedia);
+    card?.querySelectorAll('.padel-protected-media').forEach(loadProtectedMedia);
 
     const matchStage = record.result?.match?.stage || '';
-    if (matchStage === 'selection_required') {
+    const selectedCandidateId = record.result?.match?.selected_player_candidate_id || record.selected_player_candidate_id || '';
+    if (matchStage === 'selection_required' && !selectedCandidateId) {
       stopPolling(record.id);
-    } else if (record.status === 'uploaded' || record.status === 'processing') {
+    } else if (record.status === 'uploaded' || record.status === 'processing' || record.status === 'queued' || (record.status === 'awaiting_player_selection' && selectedCandidateId)) {
       startPolling(record.id);
     } else {
       stopPolling(record.id);
@@ -374,6 +390,7 @@
 
   function updatePreviewFrame(card, frameIndex) {
     if (!card) return;
+    if (card.dataset.selectedCandidateId) return;
     const payload = card.dataset.record;
     if (!payload) return;
     let record;
@@ -392,11 +409,12 @@
     card.dataset.previewFrameIndex = String(frameIndex);
     delete card.dataset.selectedCandidateId;
     previewShell.outerHTML = renderPreview(record, match, frameIndex);
-    card.querySelectorAll('.padel-protected-video').forEach(loadProtectedMedia);
+    card.querySelectorAll('.padel-protected-media').forEach(loadProtectedMedia);
   }
 
   function setSelectedPreviewCandidate(card, candidateButton) {
     if (!card || !candidateButton) return;
+    if (card.dataset.selectedCandidateId) return;
     const candidateId = candidateButton.dataset.candidateId || '';
     if (!candidateId) return;
 
@@ -447,7 +465,8 @@
         }
         renderRecord(data.analysis);
         const stage = data.analysis?.result?.match?.stage || '';
-        if (stage === 'selection_required' || data.analysis.status === 'awaiting_player_selection' || data.analysis.status === 'completed' || data.analysis.status === 'failed') {
+        const selectedCandidateId = data.analysis?.result?.match?.selected_player_candidate_id || data.analysis?.selected_player_candidate_id || '';
+        if ((stage === 'selection_required' && !selectedCandidateId) || (data.analysis.status === 'awaiting_player_selection' && !selectedCandidateId) || data.analysis.status === 'completed' || data.analysis.status === 'failed') {
           stopPolling(id);
         }
       } catch (error) {
@@ -566,6 +585,9 @@
 
       setMessage(config.strings?.selectionSuccess || 'Player selected successfully.');
       renderRecord(data.analysis);
+      if (data.analysis.status === 'queued' || data.analysis.status === 'processing') {
+        startPolling(data.analysis.id);
+      }
     } catch (error) {
       console.error(error);
       setMessage(error.message || 'Player selection failed', true);
@@ -616,6 +638,7 @@
     if (previewStepButton) {
       const card = previewStepButton.closest('.padel-match-card');
       if (!card) return;
+      if (card.dataset.selectedCandidateId) return;
       const payload = card.dataset.record;
       if (!payload) return;
       let record;
@@ -644,6 +667,7 @@
     if (previewThumb) {
       const card = previewThumb.closest('.padel-match-card');
       if (!card) return;
+      if (card.dataset.selectedCandidateId) return;
       updatePreviewFrame(card, Number(previewThumb.dataset.previewFrameIndex || 0));
       return;
     }
@@ -673,6 +697,7 @@
     if (!seek) return;
     const card = seek.closest('.padel-match-card');
     if (!card) return;
+    if (card.dataset.selectedCandidateId) return;
     const payload = card.dataset.record;
     if (!payload) return;
 
@@ -706,7 +731,7 @@
 
     const status = card.dataset.status;
     const id = card.dataset.analysisId;
-    if (status === 'uploaded' || status === 'processing') {
+    if (status === 'uploaded' || status === 'processing' || status === 'queued') {
       startPolling(id);
     }
   });

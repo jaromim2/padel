@@ -176,7 +176,7 @@ final class Padel_Video_Analysis_REST {
 			return $result;
 		}
 
-		return is_user_logged_in() ? null : $result;
+		return $this->restore_browser_session_from_cookie() ? null : $result;
 	}
 
 	public function upload(WP_REST_Request $request): WP_REST_Response|WP_Error {
@@ -543,6 +543,10 @@ final class Padel_Video_Analysis_REST {
 
 		if ($artifact === 'tracking-preview') {
 			return $this->maybe_normalize_reference($result['match']['artifacts']['tracking_preview_image'] ?? null);
+		}
+
+		if ($artifact === 'tracking-preview-video') {
+			return $this->maybe_normalize_reference($result['match']['artifacts']['tracking_preview_video'] ?? null);
 		}
 
 		if ($artifact === 'metadata') {

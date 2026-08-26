@@ -194,9 +194,27 @@ class MatchAnalysisAdapter:
         preview_artifact: PoseArtifactReference | None,
         selected_candidate: MatchPlayerCandidate,
     ) -> JobResult:
-        tracking = self._track_selected_player(video_path, probe, selected_candidate)
         tracking_preview_frame_index = self._candidate_frame_index(selected_candidate.candidate_id) or preview_summary.frame_index
-        tracking_artifact = self._write_tracking_preview_artifact(job.job_id, video_path, tracking_preview_frame_index, selected_candidate)
+        tracking = self._track_selected_player(
+            video_path,
+            probe,
+            selected_candidate,
+            start_frame_index=tracking_preview_frame_index,
+        )
+        tracking_artifact = self._write_tracking_preview_artifact(
+            job.job_id,
+            video_path,
+            tracking_preview_frame_index,
+            selected_candidate,
+        )
+        tracking_video_artifact = self._write_tracking_preview_video_artifact(
+            job.job_id,
+            video_path,
+            probe,
+            tracking,
+            tracking_preview_frame_index,
+            selected_candidate,
+        )
         stroke_candidates = self._detect_stroke_candidates(job.job_id, video_path, probe, tracking)
         metadata_artifact = self._write_metadata_artifact(
             job.job_id,
@@ -219,6 +237,7 @@ class MatchAnalysisAdapter:
             artifacts=MatchArtifactBundle(
                 preview_image=preview_artifact,
                 tracking_preview_image=tracking_artifact,
+                tracking_preview_video=tracking_video_artifact,
                 metadata=metadata_artifact,
             ),
             reasons=tracking.reasons,
@@ -252,19 +271,22 @@ class MatchAnalysisAdapter:
         video_path: str,
         probe: VideoProbe,
         selected_candidate: MatchPlayerCandidate,
+        *,
+        start_frame_index: int = 0,
     ) -> MatchTrackingSummary:
         capture = cv2.VideoCapture(video_path)
         if not capture.isOpened():
             raise MatchAnalysisError("match_video_open_failed", "Unable to open match video.")
 
         tracker = self._tracker_factory()
+        start_frame_index = max(0, min(max(0, probe.frame_count - 1), int(start_frame_index)))
+        capture.set(cv2.CAP_PROP_POS_FRAMES, start_frame_index)
         ok, first_frame = capture.read()
         if not ok or first_frame is None:
             capture.release()
             raise MatchAnalysisError("match_video_read_failed", "Unable to read the first frame.")
 
         tracker.initialize(first_frame, selected_candidate.box)
-        capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
         frames: list[MatchTrackFrame] = []
         tracked_frames = 0
@@ -272,15 +294,15 @@ class MatchAnalysisAdapter:
         interval_start: int | None = None
         track_confidences: list[float] = []
 
-        frame_index = 0
+        frame_index = start_frame_index
         while True:
-            ok, frame = capture.read()
-            if not ok or frame is None:
-                break
-
-            if frame_index == 0:
+            if frame_index == start_frame_index:
                 observation = TrackingObservation(tracked=True, box=selected_candidate.box, confidence=selected_candidate.confidence)
+                frame = first_frame
             else:
+                ok, frame = capture.read()
+                if not ok or frame is None:
+                    break
                 observation = tracker.update(frame)
                 if not observation.tracked:
                     observation = self._attempt_reacquire(frame, frames[-1] if frames else None, tracker)
@@ -328,6 +350,83 @@ class MatchAnalysisAdapter:
             frames=frames,
             reasons=reasons,
         )
+
+    def _write_tracking_preview_video_artifact(
+        self,
+        job_id: str,
+        video_path: str,
+        probe: VideoProbe,
+        tracking: MatchTrackingSummary,
+        frame_index: int,
+        selected_candidate: MatchPlayerCandidate,
+    ) -> PoseArtifactReference | None:
+        root = self._artifact_root(job_id)
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / "tracking-preview.mp4"
+
+        capture = cv2.VideoCapture(video_path)
+        if not capture.isOpened():
+            return None
+        if hasattr(cv2, "CAP_PROP_ORIENTATION_AUTO"):
+            capture.set(cv2.CAP_PROP_ORIENTATION_AUTO, 1)
+
+        frame_index = max(0, min(max(0, probe.frame_count - 1), int(frame_index)))
+        capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+
+        fourcc_candidates = ["mp4v", "avc1", "H264"]
+        writer = None
+        for fourcc_name in fourcc_candidates:
+            fourcc = cv2.VideoWriter_fourcc(*fourcc_name)
+            writer = cv2.VideoWriter(
+                str(path),
+                fourcc,
+                probe.fps or 30.0,
+                (probe.width, probe.height),
+            )
+            if writer.isOpened():
+                break
+            writer.release()
+            writer = None
+
+        if writer is None:
+            capture.release()
+            return None
+
+        frame_map = {track_frame.frame_index: track_frame for track_frame in tracking.frames if track_frame.frame_index >= frame_index}
+        try:
+            while True:
+                ok, frame = capture.read()
+                if not ok or frame is None:
+                    break
+                track_frame = frame_map.get(frame_index)
+                annotated = frame.copy()
+                if track_frame is not None and track_frame.box is not None:
+                    box = track_frame.box
+                    cv2.rectangle(annotated, (box.x, box.y), (box.x + box.width, box.y + box.height), (74, 220, 180), 3)
+                    cv2.putText(
+                        annotated,
+                        selected_candidate.label,
+                        (max(10, box.x), max(20, box.y - 8)),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.55,
+                        (255, 255, 255),
+                        2,
+                        cv2.LINE_AA,
+                    )
+                writer.write(annotated)
+                frame_index += 1
+        except Exception:
+            path.unlink(missing_ok=True)
+            return None
+        finally:
+            capture.release()
+            writer.release()
+
+        if not path.exists() or path.stat().st_size <= 0:
+            path.unlink(missing_ok=True)
+            return None
+
+        return self._artifact_reference(path, "video/mp4", "tracking_preview_video")
 
     def _attempt_reacquire(
         self,
