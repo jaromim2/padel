@@ -125,18 +125,34 @@ jobs:
             state="request_changes"
           elif grep -qiE 'approve|approved|ready for user testing|user-testing' "$review_file" && [ "$has_tests_passed" -eq 1 ] && [ "$has_human_review" -eq 0 ]; then
             state="approve"
-          elif grep -qiE 'approve|approved|ready for user testing|user-testing' "$review_file"; then
-            state="request_changes"
           fi
+          review_comment="$RUNNER_TEMP/codex-review-comment.md"
+          {
+            printf '%s\n' '<!-- codex-automated-review -->'
+            printf 'Codex review state: %s\n\n' "$state"
+            cat "$review_file"
+          } > "$review_comment"
+          remove_label_if_present() {
+            label="$1"
+            if printf '%s\n' "$labels" | grep -Fxq "$label"; then
+              gh pr edit "$pr_number" --repo "$repo" --remove-label "$label"
+            fi
+          }
+          gh pr comment "$pr_number" --repo "$repo" --body-file "$review_comment"
           case "$state" in
             approve)
-              gh pr review "$pr_number" --repo "$repo" --approve --body-file "$review_file"
               gh pr edit "$pr_number" --repo "$repo" --add-label "user-testing"
+              remove_label_if_present "changes-requested"
+              remove_label_if_present "needs-human-review"
               ;;
             request_changes)
-              gh pr review "$pr_number" --repo "$repo" --request-changes --body-file "$review_file"
+              gh pr edit "$pr_number" --repo "$repo" --add-label "changes-requested"
+              remove_label_if_present "user-testing"
+              remove_label_if_present "needs-human-review"
               ;;
             *)
-              gh pr review "$pr_number" --repo "$repo" --comment --body-file "$review_file"
+              gh pr edit "$pr_number" --repo "$repo" --add-label "needs-human-review"
+              remove_label_if_present "user-testing"
+              remove_label_if_present "changes-requested"
               ;;
           esac
