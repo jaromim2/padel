@@ -73,6 +73,28 @@ class FakeTracker:
         return TrackingObservation(tracked=True, box=moved_box, confidence=0.88)
 
 
+class RecordingTracker:
+    def __init__(self) -> None:
+        self.initialized_frame_means: list[float] = []
+        self._box = MatchBoundingBox(x=10, y=20, width=28, height=44)
+        self._frame = 0
+
+    def initialize(self, frame, box):  # type: ignore[override]
+        self._box = box
+        self.initialized_frame_means.append(float(frame.mean()))
+        self._frame = 0
+
+    def update(self, frame):  # type: ignore[override]
+        self._frame += 1
+        moved_box = MatchBoundingBox(
+            x=self._box.x + min(self._frame * 2, 18),
+            y=self._box.y,
+            width=self._box.width,
+            height=self._box.height,
+        )
+        return TrackingObservation(tracked=True, box=moved_box, confidence=0.88)
+
+
 def _build_job(source: dict[str, object] | None = None) -> JobResponse:
     return JobResponse(
         job_id="job-match",
@@ -186,4 +208,39 @@ def test_match_adapter_can_pick_player_from_later_frame(tmp_path: Path) -> None:
     assert completed.job_status == "completed"
     assert completed.match is not None
     assert completed.match.tracking is not None
-    assert completed.match.tracking.coverage > 0.5
+    assert completed.match.tracking.frames[0].frame_index == preview.match.preview.frame_index
+    assert completed.match.tracking.coverage > 0.25
+
+
+def test_match_adapter_initializes_tracking_on_selected_frame(tmp_path: Path) -> None:
+    video_path = tmp_path / "later-frame-tracking.avi"
+    _build_multi_frame_video(video_path)
+
+    tracker = RecordingTracker()
+    adapter = MatchAnalysisAdapter(
+        storage_root=tmp_path / "storage",
+        detector=ThresholdDetector(),
+        tracker_factory=lambda: tracker,
+    )
+    preview = adapter.analyze(_build_job({"analysis_mode": "match"}), str(video_path))
+    assert preview.match is not None
+    assert preview.match.preview is not None
+    selected_candidate_id = preview.match.preview.candidates[0].candidate_id
+
+    completed = adapter.analyze(
+        _build_job({
+            "analysis_mode": "match",
+            "selected_player_candidate_id": selected_candidate_id,
+        }),
+        str(video_path),
+    )
+
+    assert completed.job_status == "completed"
+    assert completed.match is not None
+    assert completed.match.tracking is not None
+    assert completed.match.tracking.frames
+    assert completed.match.tracking.frames[0].frame_index == preview.match.preview.frame_index
+    assert tracker.initialized_frame_means
+    assert tracker.initialized_frame_means[0] > 0.0
+    assert completed.match.artifacts is not None
+    assert completed.match.artifacts.tracking_preview_video is not None

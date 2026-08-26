@@ -1,0 +1,373 @@
+name: Codex Development Loop
+
+on:
+  issues:
+    types: [labeled]
+  pull_request_review:
+    types: [submitted]
+
+permissions: {}
+
+jobs:
+  implement:
+    if: >
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'codex-ready' &&
+      github.event.issue.pull_request == null &&
+      github.event.repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    concurrency:
+      group: codex-issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare implementation context
+        id: context
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const issue = context.payload.issue;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = `codex/issue-${issue.number}`;
+            const { data: prs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              head: `${owner}:${branch}`,
+              state: 'open',
+              per_page: 1,
+            });
+            const existingPrNumber = prs.length ? prs[0].number : null;
+            let currentAttempt = 0;
+            let blocked = false;
+            const issueLabels = (issue.labels || []).map((label) => label.name);
+            for (const label of issueLabels) {
+              const match = label.match(/^codex-attempt-(\d+)$/);
+              if (match) currentAttempt = Math.max(currentAttempt, Number(match[1]));
+              if (label === 'needs-human-review') blocked = true;
+            }
+            if (existingPrNumber) {
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: existingPrNumber,
+              });
+              const labels = (pr.labels || []).map((label) => label.name);
+              for (const label of labels) {
+                const match = label.match(/^codex-attempt-(\d+)$/);
+                if (match) currentAttempt = Math.max(currentAttempt, Number(match[1]));
+                if (label === 'needs-human-review') blocked = true;
+              }
+            }
+            if (currentAttempt > 0 || blocked) {
+              core.setOutput('skip', '1');
+              return;
+            }
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: issue.number,
+              labels: [`codex-attempt-1`],
+            });
+            core.setOutput('skip', '0');
+            const prompt = [
+              '# Codex implementation task',
+              '',
+              `Issue: #${issue.number}`,
+              `Title: ${issue.title}`,
+              '',
+              'Repository guidance:',
+              fs.readFileSync('AGENTS.md', 'utf8'),
+              '',
+              'Product guidance:',
+              fs.readFileSync('docs/PRODUCT.md', 'utf8'),
+              '',
+              'Issue body:',
+              issue.body || '',
+              '',
+              'Automation rules:',
+              '- Modify only the checked-out workspace.',
+              '- Keep the change scoped to this issue.',
+              '- Run the relevant tests before opening or updating a pull request.',
+              '- Use the branch name codex/issue-' + issue.number + '.',
+              '- Do not expose secrets or private URLs.',
+            ].join('\n');
+            const promptPath = `${process.env.RUNNER_TEMP}/codex-issue-${issue.number}.md`;
+            fs.writeFileSync(promptPath, prompt);
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-branch.txt`, branch);
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issue.number));
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, existingPrNumber ? String(existingPrNumber) : '');
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-next-attempt.txt`, '1');
+
+      - name: Run Codex implementation
+        if: steps.context.outputs.skip != '1'
+        uses: openai/codex-action@v1
+        env:
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/codex-issue-${{ github.event.issue.number }}.md
+
+      - name: Determine relevant tests
+        if: steps.context.outputs.skip != '1'
+        id: tests
+        run: |
+          set -euo pipefail
+          changed="$(git status --porcelain=v1 | awk '{print $2}')"
+          tests="git diff --stat"
+          if echo "$changed" | grep -q '^padel-analysis-service/'; then
+            tests="docker compose -f padel-analysis-service/docker-compose.yml run --rm --build padel-analysis-service pytest -q"
+          elif echo "$changed" | grep -qE '^(assets/|includes/|padel-video-analysis.php|tests/|docs/|AGENTS.md)'; then
+            tests="bash tests/wordpress-integration.sh"
+          fi
+          printf '%s\n' "$tests" > "$RUNNER_TEMP/codex-tests.sh"
+
+      - name: Run relevant tests
+        if: steps.context.outputs.skip != '1'
+        run: bash "$RUNNER_TEMP/codex-tests.sh"
+
+      - name: Commit and push branch
+        if: steps.context.outputs.skip != '1'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="$(cat "$RUNNER_TEMP/codex-branch.txt")"
+          issue_number="$(cat "$RUNNER_TEMP/codex-issue-number.txt")"
+          git config user.name "codex[bot]"
+          git config user.email "codex[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git add -A
+            git commit -m "Codex implementation for issue #$issue_number"
+          fi
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          git push --force-with-lease origin "$branch"
+
+      - name: Create or update pull request
+        if: steps.context.outputs.skip != '1'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="$(cat "$RUNNER_TEMP/codex-branch.txt")"
+          issue_number="$(cat "$RUNNER_TEMP/codex-issue-number.txt")"
+          attempt="$(cat "$RUNNER_TEMP/codex-next-attempt.txt")"
+          existing_pr="$(cat "$RUNNER_TEMP/codex-pr-number.txt")"
+          title="Codex implementation for issue #$issue_number"
+          body=$(cat <<EOF
+          Codex issue: #$issue_number
+
+          This pull request was created by the Codex development loop.
+          EOF
+          )
+          if [ -n "$existing_pr" ]; then
+            gh pr edit "$existing_pr" --title "$title" --body "$body" --add-label "codex-attempt-$attempt" --add-label "codex-tests-passed"
+            gh issue edit "$issue_number" --add-label "codex-tests-passed"
+          else
+            gh pr create --title "$title" --body "$body" --head "$branch" --base "${{ github.event.repository.default_branch }}" --label "codex-attempt-$attempt" --label "codex-tests-passed"
+            pr_number="$(gh pr list --head "$branch" --json number --jq '.[0].number')"
+            gh issue edit "$issue_number" --add-label "codex-tests-passed"
+            echo "Created PR #$pr_number"
+          fi
+
+  fix_after_review:
+    if: >
+      github.event_name == 'pull_request_review' &&
+      github.event.review.state == 'changes_requested' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    concurrency:
+      group: codex-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare fix context
+        id: context
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const pr = context.payload.pull_request;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const body = pr.body || '';
+            const issueMatch = body.match(/Codex issue:\s*#(\d+)/i);
+            const issueNumber = issueMatch ? Number(issueMatch[1]) : null;
+            if (!issueNumber) {
+              core.setFailed('Unable to determine issue number from pull request body.');
+              return;
+            }
+            const { data: currentPr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pr.number,
+            });
+            const labels = (currentPr.labels || []).map((label) => label.name);
+            let currentAttempt = 0;
+            let testsPassed = false;
+            let blocked = false;
+            for (const label of labels) {
+              const match = label.match(/^codex-attempt-(\d+)$/);
+              if (match) currentAttempt = Math.max(currentAttempt, Number(match[1]));
+              if (label === 'codex-tests-passed') testsPassed = true;
+              if (label === 'needs-human-review') blocked = true;
+            }
+            const nextAttempt = currentAttempt + 1;
+            if (blocked || nextAttempt > 3) {
+              core.setOutput('stop', '1');
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-stop.txt`, '1');
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issueNumber));
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(pr.number));
+              return;
+            }
+            core.setOutput('stop', '0');
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: pr.number,
+              labels: [`codex-attempt-${nextAttempt}`],
+            });
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              labels: [`codex-attempt-${nextAttempt}`],
+            });
+            const prompt = [
+              '# Codex fix task',
+              '',
+              `Pull request: #${pr.number}`,
+              `Issue: #${issueNumber}`,
+              `Current attempt: ${currentAttempt || 1}`,
+              `Next attempt: ${nextAttempt}`,
+              `Tests passed label: ${testsPassed ? 'yes' : 'no'}`,
+              '',
+              'Repository guidance:',
+              fs.readFileSync('AGENTS.md', 'utf8'),
+              '',
+              'Product guidance:',
+              fs.readFileSync('docs/PRODUCT.md', 'utf8'),
+              '',
+              'Review comments:',
+              context.payload.review.body || '',
+              '',
+              'Fix requirements:',
+              '- Address only the requested changes.',
+              '- Keep the workspace changes scoped to the review feedback.',
+              '- Re-run the relevant tests before pushing.',
+              '- Do not expose secrets or private URLs.',
+            ].join('\n');
+            const promptPath = `${process.env.RUNNER_TEMP}/codex-review-fix-${pr.number}.md`;
+            fs.writeFileSync(promptPath, prompt);
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issueNumber));
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(pr.number));
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-branch.txt`, pr.head.ref);
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-next-attempt.txt`, String(nextAttempt));
+
+      - name: Mark human review required when limit reached
+        if: steps.context.outputs.stop == '1'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pr_number="$(cat "$RUNNER_TEMP/codex-pr-number.txt")"
+          issue_number="$(cat "$RUNNER_TEMP/codex-issue-number.txt")"
+          gh pr edit "$pr_number" --add-label "needs-human-review"
+          gh issue edit "$issue_number" --add-label "needs-human-review"
+          exit 1
+
+      - name: Run Codex fix
+        if: steps.context.outputs.stop != '1'
+        uses: openai/codex-action@v1
+        env:
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/codex-review-fix-${{ github.event.pull_request.number }}.md
+
+      - name: Determine relevant tests
+        if: steps.context.outputs.stop != '1'
+        run: |
+          set -euo pipefail
+          changed="$(git status --porcelain=v1 | awk '{print $2}')"
+          tests="git diff --stat"
+          if echo "$changed" | grep -q '^padel-analysis-service/'; then
+            tests="docker compose -f padel-analysis-service/docker-compose.yml run --rm --build padel-analysis-service pytest -q"
+          elif echo "$changed" | grep -qE '^(assets/|includes/|padel-video-analysis.php|tests/|docs/|AGENTS.md)'; then
+            tests="bash tests/wordpress-integration.sh"
+          fi
+          printf '%s\n' "$tests" > "$RUNNER_TEMP/codex-tests.sh"
+
+      - name: Run relevant tests
+        if: steps.context.outputs.stop != '1'
+        id: tests
+        continue-on-error: true
+        run: bash "$RUNNER_TEMP/codex-tests.sh"
+
+      - name: Finalize test result
+        if: steps.context.outputs.stop != '1'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pr_number="$(cat "$RUNNER_TEMP/codex-pr-number.txt")"
+          issue_number="$(cat "$RUNNER_TEMP/codex-issue-number.txt")"
+          attempt="$(cat "$RUNNER_TEMP/codex-next-attempt.txt")"
+          if [ "${{ steps.tests.outcome }}" != "success" ]; then
+            if [ "$attempt" -ge 3 ]; then
+              gh pr edit "$pr_number" --add-label "needs-human-review"
+              gh issue edit "$issue_number" --add-label "needs-human-review"
+            fi
+            exit 1
+          fi
+
+      - name: Commit and push fix
+        if: steps.context.outputs.stop != '1'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="$(cat "$RUNNER_TEMP/codex-branch.txt")"
+          issue_number="$(cat "$RUNNER_TEMP/codex-issue-number.txt")"
+          attempt="$(cat "$RUNNER_TEMP/codex-next-attempt.txt")"
+          git config user.name "codex[bot]"
+          git config user.email "codex[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git add -A
+            git commit -m "Codex fix for issue #$issue_number"
+          fi
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          git push --force-with-lease origin "$branch"
+          gh pr edit "${{ github.event.pull_request.number }}" --add-label "codex-attempt-$attempt" --add-label "codex-tests-passed"
+          gh issue edit "$issue_number" --add-label "codex-tests-passed"

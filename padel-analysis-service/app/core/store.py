@@ -325,9 +325,6 @@ class JobStore:
                 job = self._row_to_dict(row)
                 if job is None:
                     continue
-                payload = self._payload_from_job(job)
-                if str(job["analysis_mode"]) == "match" and payload.get("selected_player_candidate_id"):
-                    continue
                 if job["status"] == "queued" and now >= float(job["ready_at"]):
                     self._transition_to_processing(conn, job, now)
                     job = self._row_to_dict(
@@ -479,6 +476,8 @@ class JobStore:
             existing_selected_candidate_id = str(payload.get("selected_player_candidate_id", "")).strip()
             if existing_selected_candidate_id and existing_selected_candidate_id == selected_candidate_id:
                 return job
+            if existing_selected_candidate_id and existing_selected_candidate_id != selected_candidate_id:
+                raise ValueError("selected_player_already_confirmed")
 
             accepts_completed_preview = False
             if str(job["status"]) == "completed":

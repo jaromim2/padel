@@ -93,6 +93,7 @@ def _completed_result(tmp_path: Path, selected: str) -> JobResult:
     storage_dir = tmp_path / "storage"
     preview_key = _artifact(storage_dir, "match/job-match/match-preview.jpg", b"preview")
     tracking_key = _artifact(storage_dir, "match/job-match/tracking-preview.jpg", b"tracking")
+    tracking_video_key = _artifact(storage_dir, "match/job-match/tracking-preview.mp4", b"tracking-video-bytes")
     metadata_key = _artifact(storage_dir, "match/job-match/match-metadata.json", b"{}")
     clip_key = _artifact(storage_dir, f"match/job-match/{selected}-clip.mp4", b"clip")
     thumb_key = _artifact(storage_dir, f"match/job-match/{selected}-thumbnail.jpg", b"thumb")
@@ -169,6 +170,12 @@ def _completed_result(tmp_path: Path, selected: str) -> JobResult:
                     "mime_type": "image/jpeg",
                     "filename": "tracking-preview.jpg",
                 },
+                tracking_preview_video={
+                    "type": "tracking_preview_video",
+                    "storage_key": tracking_video_key,
+                    "mime_type": "video/mp4",
+                    "filename": "tracking-preview.mp4",
+                },
                 metadata={
                     "type": "metadata",
                     "storage_key": metadata_key,
@@ -244,6 +251,13 @@ def test_match_selection_route_and_artifact_download(tmp_path: Path) -> None:
     )
     assert artifact.status_code == 200
     assert artifact.headers["content-type"].startswith("image/jpeg")
+
+    tracking_video = client.get(
+        f"/api/v1/jobs/{job_id}/artifacts/tracking-preview-video",
+        headers={"X-Padel-API-Secret": "test-secret"},
+    )
+    assert tracking_video.status_code == 200
+    assert tracking_video.headers["content-type"].startswith("video/mp4")
 
 
 def test_match_selection_accepts_completed_preview_state(tmp_path: Path) -> None:
@@ -354,3 +368,48 @@ def test_match_selection_is_idempotent_for_duplicate_confirm(tmp_path: Path) -> 
     assert stored["analysis_id"] == 101
     assert stored["payload"]["selected_player_candidate_id"] == "candidate-1"
     assert stored["download_url"] == "http://example.com/fresh-video.mp4"
+
+
+def test_match_selection_rejects_different_candidate_after_confirmation(tmp_path: Path) -> None:
+    client = _build_client(tmp_path)
+    created = client.post(
+        "/api/v1/jobs",
+        headers={"X-Padel-API-Secret": "test-secret"},
+        json={
+            "analysis_id": 101,
+            "owner_user_id": 7,
+            "analysis_mode": "match",
+            "shot_type": "forehand",
+            "dominant_hand": "right",
+            "camera_angle": "side",
+            "video_download_url": "http://example.com/video.mp4",
+            "video_name": "match.mp4",
+            "video_mime_type": "video/mp4",
+            "video_size": 1234,
+            "video_duration_seconds": 30.0,
+            "video_sha256": "abc123",
+            "submission_fingerprint": "fingerprint-match-locked",
+        },
+    )
+    assert created.status_code == 201
+    job_id = created.json()["job_id"]
+
+    client.app.state.store.update_job_state(  # noqa: SLF001
+        job_id,
+        "awaiting_player_selection",
+        result=_preview_result(tmp_path).model_dump(mode="json"),
+    )
+
+    first = client.post(
+        f"/api/v1/jobs/{job_id}/selected-player",
+        headers={"X-Padel-API-Secret": "test-secret"},
+        json={"selected_player_candidate_id": "candidate-1"},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        f"/api/v1/jobs/{job_id}/selected-player",
+        headers={"X-Padel-API-Secret": "test-secret"},
+        json={"selected_player_candidate_id": "candidate-2"},
+    )
+    assert second.status_code in {400, 409, 422}
