@@ -4,9 +4,14 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+permissions: {}
+
 jobs:
   codex_review:
     runs-on: ubuntu-latest
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.repo.full_name == github.repository
     permissions:
       contents: read
       pull-requests: read
@@ -55,6 +60,9 @@ jobs:
 
       - name: Run Codex review
         uses: openai/codex-action@v1
+        env:
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: ${{ runner.temp }}/codex-review-${{ github.event.pull_request.number }}.md
@@ -70,9 +78,13 @@ jobs:
   post_review:
     needs: codex_review
     runs-on: ubuntu-latest
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.repo.full_name == github.repository
     permissions:
       contents: read
       pull-requests: write
+      issues: write
     steps:
       - name: Download Codex review output
         uses: actions/download-artifact@v4
@@ -91,11 +103,20 @@ jobs:
             echo "Codex review output is empty."
             exit 1
           fi
+          labels="$(gh pr view "$pr_number" --json labels --jq '.labels[].name' || true)"
+          has_tests_passed=0
+          has_human_review=0
+          for label in $labels; do
+            [ "$label" = "codex-tests-passed" ] && has_tests_passed=1
+            [ "$label" = "needs-human-review" ] && has_human_review=1
+          done
           state="comment"
           if grep -qiE 'request[_ -]?changes|changes requested|blocking' "$review_file"; then
             state="request_changes"
-          elif grep -qiE 'approve|approved|ready for user testing|user-testing' "$review_file"; then
+          elif grep -qiE 'approve|approved|ready for user testing|user-testing' "$review_file" && [ "$has_tests_passed" -eq 1 ] && [ "$has_human_review" -eq 0 ]; then
             state="approve"
+          elif grep -qiE 'approve|approved|ready for user testing|user-testing' "$review_file"; then
+            state="request_changes"
           fi
           case "$state" in
             approve)
@@ -109,4 +130,3 @@ jobs:
               gh pr review "$pr_number" --comment --body-file "$review_file"
               ;;
           esac
-
