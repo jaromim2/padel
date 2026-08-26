@@ -12,8 +12,6 @@ jobs:
     if: >
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.repo.full_name == github.repository
-    outputs:
-      review_body: ${{ steps.collect_review.outputs.review_body }}
     permissions:
       contents: read
       pull-requests: read
@@ -70,8 +68,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/codex-review-${{ github.event.pull_request.number }}.md
           output-file: ${{ runner.temp }}/codex-review-output.md
 
-      - name: Collect Codex review output
-        id: collect_review
+      - name: Verify Codex review output
         run: |
           set -euo pipefail
           review_file="$RUNNER_TEMP/codex-review-output.md"
@@ -79,26 +76,13 @@ jobs:
             echo "Codex review output is empty."
             exit 1
           fi
-          delimiter="CODEX_REVIEW_$(date +%s%N)_$RANDOM"
-          {
-            echo "review_body<<$delimiter"
-            cat "$review_file"
-            echo "$delimiter"
-          } >> "$GITHUB_OUTPUT"
 
-      - name: Validate review output serialization
-        run: |
-          set -euo pipefail
-          sample_file="$RUNNER_TEMP/codex-review-serialization-test.txt"
-          sample_output="$RUNNER_TEMP/codex-review-serialization-test.output"
-          delimiter="CODEX_REVIEW_$(date +%s%N)_$RANDOM"
-          printf '%s\n' 'This review body contains the literal word EOF and should serialize safely.' > "$sample_file"
-          {
-            echo "review_body<<$delimiter"
-            cat "$sample_file"
-            echo "$delimiter"
-          } > "$sample_output"
-          python3 -c 'from pathlib import Path; import sys; content = Path(sys.argv[1]).read_text().splitlines(); assert content[0].startswith("review_body<<CODEX_REVIEW_"); assert "EOF" in content[1]; assert content[-1] == content[0].split("<<", 1)[1]' "$sample_output"
+      - name: Upload Codex review output
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-review-output
+          path: ${{ runner.temp }}/codex-review-output.md
+          if-no-files-found: error
 
   post_review:
     needs: codex_review
@@ -111,16 +95,20 @@ jobs:
       pull-requests: write
       issues: write
     steps:
+      - name: Download Codex review output
+        uses: actions/download-artifact@v4
+        with:
+          name: codex-review-output
+          path: ${{ runner.temp }}
+
       - name: Post review result to PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REVIEW_BODY: ${{ needs.codex_review.outputs.review_body }}
         run: |
           set -euo pipefail
           repo="$GITHUB_REPOSITORY"
           pr_number="${{ github.event.pull_request.number }}"
           review_file="$RUNNER_TEMP/codex-review-output.md"
-          printf '%s\n' "$REVIEW_BODY" > "$review_file"
           if [ ! -s "$review_file" ]; then
             echo "Codex review output is empty."
             exit 1
