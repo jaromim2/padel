@@ -1,0 +1,112 @@
+name: Codex PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  codex_review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v5
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare review prompt
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const pr = context.payload.pull_request;
+            const prompt = [
+              '# Codex pull request review',
+              '',
+              `Pull request: #${pr.number}`,
+              `Title: ${pr.title}`,
+              `Base branch: ${pr.base.ref}`,
+              `Head branch: ${pr.head.ref}`,
+              '',
+              'Repository guidance:',
+              fs.readFileSync('AGENTS.md', 'utf8'),
+              '',
+              'Product guidance:',
+              fs.readFileSync('docs/PRODUCT.md', 'utf8'),
+              '',
+              'Review focus:',
+              '- correctness',
+              '- regressions',
+              '- test coverage',
+              '- secrets and private data handling',
+              '- whether the change is ready for user testing',
+              '',
+              'Return a concise review result with one of these states: approve, comment, request_changes.',
+              'If there are blocking issues, use request_changes.',
+            ].join('\n');
+            const path = `${process.env.RUNNER_TEMP}/codex-review-${pr.number}.md`;
+            fs.writeFileSync(path, prompt);
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(pr.number));
+
+      - name: Run Codex review
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/codex-review-${{ github.event.pull_request.number }}.md
+          output-file: ${{ runner.temp }}/codex-review-output.md
+
+      - name: Upload Codex review output
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-review-output-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/codex-review-output.md
+          if-no-files-found: error
+
+  post_review:
+    needs: codex_review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Download Codex review output
+        uses: actions/download-artifact@v4
+        with:
+          name: codex-review-output-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}
+
+      - name: Post review result to PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pr_number="${{ github.event.pull_request.number }}"
+          review_file="$RUNNER_TEMP/codex-review-output.md"
+          if [ ! -s "$review_file" ]; then
+            echo "Codex review output is empty."
+            exit 1
+          fi
+          state="comment"
+          if grep -qiE 'request[_ -]?changes|changes requested|blocking' "$review_file"; then
+            state="request_changes"
+          elif grep -qiE 'approve|approved|ready for user testing|user-testing' "$review_file"; then
+            state="approve"
+          fi
+          case "$state" in
+            approve)
+              gh pr review "$pr_number" --approve --body-file "$review_file"
+              gh pr edit "$pr_number" --add-label "user-testing"
+              ;;
+            request_changes)
+              gh pr review "$pr_number" --request-changes --body-file "$review_file"
+              ;;
+            *)
+              gh pr review "$pr_number" --comment --body-file "$review_file"
+              ;;
+          esac
+

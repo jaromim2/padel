@@ -1,0 +1,238 @@
+name: Codex Development Loop
+
+on:
+  issues:
+    types: [labeled]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  implement:
+    if: >
+      github.event_name == 'issues' &&
+      github.event.label.name == 'codex-ready'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Prepare task context
+        id: context
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const issue = context.payload.issue;
+            const branch = `codex/issue-${issue.number}`;
+            const body = issue.body || '';
+            const prompt = [
+              '# Codex implementation task',
+              '',
+              `Issue: #${issue.number}`,
+              `Title: ${issue.title}`,
+              '',
+              'Repository guidance:',
+              fs.readFileSync('AGENTS.md', 'utf8'),
+              '',
+              'Product guidance:',
+              fs.readFileSync('docs/PRODUCT.md', 'utf8'),
+              '',
+              'Issue body:',
+              body,
+              '',
+              'Implementation requirements:',
+              '- Modify only the checked-out workspace.',
+              '- Keep the change scoped to the issue.',
+              '- Run the relevant tests before opening or updating a pull request.',
+              '- Commit to the branch named ' + branch + '.',
+              '- Do not expose secrets or private URLs.',
+            ].join('\n');
+            const path = `${process.env.RUNNER_TEMP}/codex-issue-${issue.number}.md`;
+            fs.writeFileSync(path, prompt);
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-branch.txt`, branch);
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issue.number));
+
+      - name: Run Codex implementation
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/codex-issue-${{ github.event.issue.number }}.md
+
+      - name: Determine relevant tests
+        id: tests
+        run: |
+          set -euo pipefail
+          changed="$(git status --porcelain=v1 | awk '{print $2}')"
+          tests=""
+          if echo "$changed" | grep -q '^padel-analysis-service/'; then
+            tests="docker compose -f padel-analysis-service/docker-compose.yml run --rm --build padel-analysis-service pytest -q"
+          elif echo "$changed" | grep -qE '^(assets/|includes/|padel-video-analysis.php|tests/|docs/|AGENTS.md)'; then
+            tests="bash tests/wordpress-integration.sh"
+          else
+            tests="git status --short"
+          fi
+          printf '%s\n' "$tests" > "$RUNNER_TEMP/codex-tests.sh"
+          echo "tests=$tests" >> "$GITHUB_OUTPUT"
+
+      - name: Run relevant tests
+        run: bash "$RUNNER_TEMP/codex-tests.sh"
+
+      - name: Commit and push branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="$(cat "$RUNNER_TEMP/codex-branch.txt")"
+          issue_number="$(cat "$RUNNER_TEMP/codex-issue-number.txt")"
+          git config user.name "codex[bot]"
+          git config user.email "codex[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git add -A
+            git commit -m "Codex implementation for issue #$issue_number"
+          fi
+          git push --force-with-lease origin "$branch"
+
+      - name: Create or update pull request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="$(cat "$RUNNER_TEMP/codex-branch.txt")"
+          issue_number="$(cat "$RUNNER_TEMP/codex-issue-number.txt")"
+          existing_pr="$(gh pr list --head "$branch" --json number --jq '.[0].number' || true)"
+          title="Codex implementation for issue #$issue_number"
+          body=$(cat <<EOF
+          Codex issue: #$issue_number
+          <!-- codex-iteration: 1 -->
+
+          This pull request was created by the Codex development loop.
+          EOF
+          )
+          if [ -n "${existing_pr:-}" ]; then
+            gh pr edit "$existing_pr" --title "$title" --body "$body"
+          else
+            gh pr create --title "$title" --body "$body" --head "$branch" --base "${{ github.event.repository.default_branch }}"
+          fi
+
+  fix_after_review:
+    if: >
+      github.event_name == 'pull_request_review' &&
+      github.event.review.state == 'changes_requested'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Prepare review fix context
+        id: context
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const pr = context.payload.pull_request;
+            const branch = pr.head.ref;
+            const body = pr.body || '';
+            const issueMatch = body.match(/Codex issue:\s*#(\d+)/i);
+            const iterationMatch = body.match(/codex-iteration:\s*(\d+)/i);
+            const issueNumber = issueMatch ? Number(issueMatch[1]) : null;
+            const currentIteration = iterationMatch ? Number(iterationMatch[1]) : 1;
+            const nextIteration = currentIteration + 1;
+            if (!issueNumber) {
+              core.setFailed('Unable to determine issue number from pull request body.');
+              return;
+            }
+            if (nextIteration > 3) {
+              core.setFailed('Maximum Codex iterations reached for this issue.');
+              return;
+            }
+            const prompt = [
+              '# Codex fix task',
+              '',
+              `Pull request: #${pr.number}`,
+              `Issue: #${issueNumber}`,
+              `Branch: ${branch}`,
+              `Current iteration: ${currentIteration}`,
+              `Next iteration: ${nextIteration}`,
+              '',
+              'Repository guidance:',
+              fs.readFileSync('AGENTS.md', 'utf8'),
+              '',
+              'Product guidance:',
+              fs.readFileSync('docs/PRODUCT.md', 'utf8'),
+              '',
+              'Review comments:',
+              context.payload.review.body || '',
+              '',
+              'Fix requirements:',
+              '- Address the requested changes only.',
+              '- Keep the workspace changes scoped to the review feedback.',
+              '- Re-run the relevant tests before pushing.',
+              '- Preserve the branch name ' + branch + '.',
+              '- Do not expose secrets or private URLs.',
+            ].join('\n');
+            const path = `${process.env.RUNNER_TEMP}/codex-review-fix-${pr.number}.md`;
+            fs.writeFileSync(path, prompt);
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-branch.txt`, branch);
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(pr.number));
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issueNumber));
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-iteration.txt`, String(nextIteration));
+
+      - name: Run Codex fix
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/codex-review-fix-${{ github.event.pull_request.number }}.md
+
+      - name: Run relevant tests
+        run: |
+          set -euo pipefail
+          if git status --porcelain=v1 | awk '{print $2}' | grep -q '^padel-analysis-service/'; then
+            docker compose -f padel-analysis-service/docker-compose.yml run --rm --build padel-analysis-service pytest -q
+          else
+            bash tests/wordpress-integration.sh
+          fi
+
+      - name: Commit and push fix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="$(cat "$RUNNER_TEMP/codex-branch.txt")"
+          issue_number="$(cat "$RUNNER_TEMP/codex-issue-number.txt")"
+          git config user.name "codex[bot]"
+          git config user.email "codex[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git add -A
+            git commit -m "Codex fix for issue #$issue_number"
+          fi
+          git push --force-with-lease origin "$branch"
+
+      - name: Update pull request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          pr_number="$(cat "$RUNNER_TEMP/codex-pr-number.txt")"
+          iteration="$(cat "$RUNNER_TEMP/codex-iteration.txt")"
+          current_body="$(gh pr view "$pr_number" --json body --jq '.body')"
+          updated_body="$(CURRENT_BODY="$current_body" python3 -c "import os,re,sys; body=os.environ['CURRENT_BODY']; iteration=sys.argv[1]; print(re.sub(r'<!-- codex-iteration: \\d+ -->', f'<!-- codex-iteration: {iteration} -->', body))" "$iteration")"
+          gh pr edit "$pr_number" --body "$updated_body"
