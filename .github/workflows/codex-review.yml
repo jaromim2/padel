@@ -65,6 +65,8 @@ jobs:
           GH_TOKEN: ""
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":read-only"
+          allow-bot-users: github-actions[bot]
           prompt-file: ${{ runner.temp }}/codex-review-${{ github.event.pull_request.number }}.md
           output-file: ${{ runner.temp }}/codex-review-output.md
 
