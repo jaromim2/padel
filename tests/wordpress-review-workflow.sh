@@ -11,15 +11,8 @@ SUMMARY_JSON="/tmp/padel-review-summary.json"
 SERVICE_URL="${PADEL_ANALYSIS_SERVICE_URL:-http://127.0.0.1:8010}"
 SERVICE_SECRET="${PADEL_ANALYSIS_SERVICE_SECRET:-padel-local-dev-secret}"
 
-if ! curl -fsS "$SERVICE_URL/health/live" >/dev/null; then
-  echo "service health check failed"
-  exit 1
-fi
-
-if ! curl -fsS -H "X-Padel-API-Secret: $SERVICE_SECRET" "$SERVICE_URL/health/ready" >/dev/null; then
-  echo "service readiness check failed"
-  exit 1
-fi
+source "$ROOT/tests/service-utils.sh"
+ensure_analysis_service
 
 ADMIN_USER="$(awk -F= '/^ADMIN_USER=/{print $2}' "$SITE_DIR/.padel-credentials.txt")"
 ADMIN_PASS="$(awk -F= '/^ADMIN_PASS=/{print $2}' "$SITE_DIR/.padel-credentials.txt")"

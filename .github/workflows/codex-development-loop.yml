@@ -33,7 +33,7 @@ jobs:
 
       - name: Prepare implementation context
         id: context
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -126,14 +126,7 @@ jobs:
         id: tests
         run: |
           set -euo pipefail
-          changed="$(git status --porcelain=v1 | awk '{print $2}')"
-          tests="git diff --stat"
-          if echo "$changed" | grep -q '^padel-analysis-service/'; then
-            tests="docker compose -f padel-analysis-service/docker-compose.yml run --rm --build padel-analysis-service pytest -q"
-          elif echo "$changed" | grep -qE '^(assets/|includes/|padel-video-analysis.php|tests/|docs/|AGENTS.md)'; then
-            tests="bash tests/wordpress-integration.sh"
-          fi
-          printf '%s\n' "$tests" > "$RUNNER_TEMP/codex-tests.sh"
+          printf '%s\n' "bash tests/validation-runner.sh" > "$RUNNER_TEMP/codex-tests.sh"
 
       - name: Run relevant tests
         if: steps.context.outputs.skip != '1'
@@ -209,7 +202,7 @@ jobs:
 
       - name: Prepare fix context
         id: context
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -317,14 +310,7 @@ jobs:
         if: steps.context.outputs.stop != '1'
         run: |
           set -euo pipefail
-          changed="$(git status --porcelain=v1 | awk '{print $2}')"
-          tests="git diff --stat"
-          if echo "$changed" | grep -q '^padel-analysis-service/'; then
-            tests="docker compose -f padel-analysis-service/docker-compose.yml run --rm --build padel-analysis-service pytest -q"
-          elif echo "$changed" | grep -qE '^(assets/|includes/|padel-video-analysis.php|tests/|docs/|AGENTS.md)'; then
-            tests="bash tests/wordpress-integration.sh"
-          fi
-          printf '%s\n' "$tests" > "$RUNNER_TEMP/codex-tests.sh"
+          printf '%s\n' "bash tests/validation-runner.sh" > "$RUNNER_TEMP/codex-tests.sh"
 
       - name: Run relevant tests
         if: steps.context.outputs.stop != '1'
