@@ -36,3 +36,4 @@ This repository uses Codex for controlled implementation and review.
 ## Manual handoff
 When the automation succeeds, the final state should be ready for user testing.
 Humans remain responsible for final product validation and merge decisions.
+The automated development loop completed an end-to-end smoke test.
