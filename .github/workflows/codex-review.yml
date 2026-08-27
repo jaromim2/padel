@@ -1,8 +1,8 @@
 name: Codex PR Review
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  # Automatic PR reviews are intentionally disabled to protect API usage.
+  workflow_dispatch:
 
 permissions: {}
 
