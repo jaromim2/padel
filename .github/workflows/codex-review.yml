@@ -123,11 +123,27 @@ jobs:
             [ "$label" = "needs-human-review" ] && has_human_review=1
           done
           state="comment"
-          if grep -qiE 'request[_ -]?changes|changes requested|blocking' "$review_file"; then
-            state="request_changes"
-          elif grep -qiE 'approve|approved|ready for user testing|user-testing' "$review_file" && [ "$has_tests_passed" -eq 1 ] && [ "$has_human_review" -eq 0 ]; then
-            state="approve"
-          fi
+          explicit_state="$(grep -im1 -E '^[[:space:]]*(approve|comment|request[_ -]?changes)[[:space:]]*$' "$review_file" | tr '[:upper:] -' '[:lower:]__' | xargs || true)"
+          case "$explicit_state" in
+            approve)
+              if [ "$has_tests_passed" -eq 1 ] && [ "$has_human_review" -eq 0 ]; then
+                state="approve"
+              fi
+              ;;
+            request_changes)
+              state="request_changes"
+              ;;
+            comment)
+              state="comment"
+              ;;
+            *)
+              if grep -qiE 'changes requested|blocking (issue|issues|problem|problems|bug|bugs)' "$review_file"; then
+                state="request_changes"
+              elif grep -qiE 'approved|ready for user testing|user-testing' "$review_file" && [ "$has_tests_passed" -eq 1 ] && [ "$has_human_review" -eq 0 ]; then
+                state="approve"
+              fi
+              ;;
+          esac
           review_comment="$RUNNER_TEMP/codex-review-comment.md"
           {
             printf '%s\n' '<!-- codex-automated-review -->'
