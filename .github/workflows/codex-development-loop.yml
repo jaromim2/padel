@@ -273,7 +273,8 @@ jobs:
             if (isDispatch) {
               const encoded = context.payload.inputs.review_body_b64 || '';
               reviewBody = encoded ? Buffer.from(encoded, 'base64').toString('utf8') : '';
-            } else {
+            }
+            if (!reviewBody) {
               const { data: comments } = await github.rest.issues.listComments({
                 owner,
                 repo,
@@ -335,7 +336,7 @@ jobs:
               '- Re-run the relevant tests before pushing.',
               '- Do not expose secrets or private URLs.',
             ].join('\n');
-            const promptPath = `${process.env.RUNNER_TEMP}/codex-review-fix-${pr.number}.md`;
+            const promptPath = `${process.env.RUNNER_TEMP}/codex-review-fix.md`;
             fs.writeFileSync(promptPath, prompt);
             fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issueNumber));
             fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(pr.number));
@@ -362,7 +363,7 @@ jobs:
           GH_TOKEN: ""
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          prompt-file: ${{ runner.temp }}/codex-review-fix-${{ github.event.issue.number }}.md
+          prompt-file: ${{ runner.temp }}/codex-review-fix.md
 
       - name: Determine relevant tests
         if: steps.context.outputs.stop != '1'
@@ -413,5 +414,5 @@ jobs:
           fi
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
           git push --force-with-lease origin "$branch"
-          gh pr edit "${{ github.event.issue.number }}" --repo "$GITHUB_REPOSITORY" --add-label "codex-attempt-$attempt" --add-label "codex-tests-passed" --remove-label "changes-requested"
+          gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" --add-label "codex-attempt-$attempt" --add-label "codex-tests-passed" --remove-label "changes-requested"
           gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --add-label "codex-tests-passed" --remove-label "changes-requested"
