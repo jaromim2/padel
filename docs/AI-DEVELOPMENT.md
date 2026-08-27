@@ -20,7 +20,7 @@ This repository uses Codex for controlled implementation and review.
   - `user-testing` for approved review results
   - `changes-requested` when Codex requests changes
   - `needs-human-review` when the review is unclear or blocked
-- If the review requests changes, the `changes-requested` label starts the next fix attempt.
+- If the review requests changes, the review job applies `changes-requested` and dispatches the next fix workflow so GitHub's `GITHUB_TOKEN` event suppression does not block the retry.
 - Do not auto-merge after a successful review.
 
 ## State handling

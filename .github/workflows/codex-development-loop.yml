@@ -3,6 +3,20 @@ name: Codex Development Loop
 on:
   issues:
     types: [labeled]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Workflow mode
+        required: true
+        type: string
+      issue_number:
+        description: Issue number associated with the PR
+        required: true
+        type: string
+      pr_number:
+        description: PR number to fix
+        required: true
+        type: string
 
 permissions: {}
 
@@ -179,11 +193,17 @@ jobs:
 
   fix_after_review:
     if: >
-      github.event_name == 'issues' &&
-      github.event.action == 'labeled' &&
-      github.event.label.name == 'changes-requested' &&
-      github.event.issue.pull_request != null &&
-      github.event.repository.full_name == github.repository
+      (
+        github.event_name == 'issues' &&
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'changes-requested' &&
+        github.event.issue.pull_request != null &&
+        github.event.repository.full_name == github.repository
+      ) ||
+      (
+        github.event_name == 'workflow_dispatch' &&
+        github.event.inputs.mode == 'fix_after_review'
+      )
     runs-on: ubuntu-latest
     concurrency:
       group: codex-pr-${{ github.event.issue.number }}
@@ -206,24 +226,30 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            const issue = context.payload.issue;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const isDispatch = context.eventName === 'workflow_dispatch';
+            const triggerIssueNumber = isDispatch
+              ? Number(context.payload.inputs.issue_number)
+              : Number(context.payload.issue.number);
+            const triggerPrNumber = isDispatch
+              ? Number(context.payload.inputs.pr_number)
+              : Number(context.payload.issue.number);
             const { data: pr } = await github.rest.pulls.get({
               owner,
               repo,
-              pull_number: issue.number,
+              pull_number: triggerPrNumber,
             });
             if (pr.head.repo.full_name !== github.repository || pr.base.repo.full_name !== github.repository) {
               core.setOutput('stop', '1');
               fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-stop.txt`, '1');
-              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issue.number));
-              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(issue.number));
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(triggerIssueNumber));
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(triggerPrNumber));
               return;
             }
             const body = pr.body || '';
             const issueMatch = body.match(/Codex issue:\s*#(\d+)/i);
-            const issueNumber = issueMatch ? Number(issueMatch[1]) : null;
+            const issueNumber = issueMatch ? Number(issueMatch[1]) : triggerIssueNumber;
             if (!issueNumber) {
               core.setFailed('Unable to determine issue number from pull request body.');
               return;
