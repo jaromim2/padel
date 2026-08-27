@@ -125,29 +125,7 @@
           <h4>Preview frame</h4>
           <span>${formatTimestamp(selectedFrame?.timestamp_ms ?? preview.timestamp_ms ?? 0)}</span>
         </div>
-        <div class="padel-preview-controls">
-          <button type="button" class="padel-button secondary padel-preview-step" data-direction="prev" ${selectionLocked ? 'disabled' : ''}>Previous</button>
-          <button type="button" class="padel-button secondary padel-preview-step" data-direction="next" ${selectionLocked ? 'disabled' : ''}>Next</button>
-          <button type="button" class="padel-button padel-preview-confirm" data-analysis-id="${escapeHtml(record.id)}" data-selected-candidate-id="${escapeHtml(selectedCandidateId)}" ${selectionLocked ? 'disabled' : 'disabled'}>${selectionLocked ? 'Player confirmed' : 'Confirm player'}</button>
-        </div>
-        <div class="padel-preview-timeline">
-          <input type="range" min="0" max="${Math.max(0, frames.length - 1)}" value="${Math.max(0, frames.findIndex((frame) => Number(frame.frame_index) === selectedFrameId))}" class="padel-preview-seek" ${selectionLocked ? 'disabled' : ''}>
-          <div class="padel-preview-thumbs">
-            ${frames.map((frame, index) => `
-              <button
-                type="button"
-                class="padel-preview-thumb ${Number(frame.frame_index) === selectedFrameId ? 'is-selected' : ''}"
-                ${selectionLocked ? 'disabled' : ''}
-                data-preview-frame-index="${escapeHtml(frame.frame_index)}"
-                data-analysis-id="${escapeHtml(record.id)}"
-                title="${escapeHtml(`${formatTimestamp(frame.timestamp_ms)} · ${frame.candidates?.length || 0} candidates`)}"
-              >
-                <span>${escapeHtml(formatTimestamp(frame.timestamp_ms))}</span>
-                <strong>${escapeHtml(String(frame.candidates?.length || 0))}</strong>
-              </button>
-            `).join('')}
-          </div>
-        </div>
+        <p class="padel-preview-instruction">Select yourself once, then confirm.</p>
         <div class="padel-match-preview" data-preview-width="${escapeHtml(width)}" data-preview-height="${escapeHtml(height)}">
           <img
             class="padel-match-preview-image padel-protected-media"
@@ -160,6 +138,35 @@
             ${renderPreviewOverlay(record, selectedFrame, selectionRequired, width, height)}
           </div>
         </div>
+        <div class="padel-preview-confirm-row">
+          <button type="button" class="padel-button padel-preview-confirm" data-analysis-id="${escapeHtml(record.id)}" data-selected-candidate-id="${escapeHtml(selectedCandidateId)}" disabled>${selectionLocked ? 'Player confirmed' : 'Confirm player'}</button>
+        </div>
+        ${frames.length > 1 && !selectionLocked ? `
+          <details class="padel-preview-alternates">
+            <summary>Can't see yourself? Choose another frame</summary>
+            <div class="padel-preview-controls">
+              <button type="button" class="padel-button secondary padel-preview-step" data-direction="prev">Previous</button>
+              <button type="button" class="padel-button secondary padel-preview-step" data-direction="next">Next</button>
+            </div>
+            <div class="padel-preview-timeline">
+              <input type="range" min="0" max="${Math.max(0, frames.length - 1)}" value="${Math.max(0, frames.findIndex((frame) => Number(frame.frame_index) === selectedFrameId))}" class="padel-preview-seek">
+              <div class="padel-preview-thumbs">
+                ${frames.map((frame) => `
+                  <button
+                    type="button"
+                    class="padel-preview-thumb ${Number(frame.frame_index) === selectedFrameId ? 'is-selected' : ''}"
+                    data-preview-frame-index="${escapeHtml(frame.frame_index)}"
+                    data-analysis-id="${escapeHtml(record.id)}"
+                    title="${escapeHtml(`${formatTimestamp(frame.timestamp_ms)} · ${frame.candidates?.length || 0} candidates`)}"
+                  >
+                    <span>${escapeHtml(formatTimestamp(frame.timestamp_ms))}</span>
+                    <strong>${escapeHtml(String(frame.candidates?.length || 0))}</strong>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          </details>
+        ` : ''}
         <p class="padel-help-note">${escapeHtml(allWarnings.length ? allWarnings.join(' · ') : 'Preview is stored privately and is visible only inside WordPress.')}</p>
       </section>
     `;
