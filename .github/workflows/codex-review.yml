@@ -151,6 +151,7 @@ jobs:
               gh pr edit "$pr_number" --repo "$repo" --add-label "changes-requested"
               remove_label_if_present "user-testing"
               remove_label_if_present "needs-human-review"
+              gh workflow run "Codex Development Loop" --repo "$repo" --ref "${{ github.event.repository.default_branch }}" -f mode=fix_after_review -f issue_number="$pr_number" -f pr_number="$pr_number"
               ;;
             *)
               gh pr edit "$pr_number" --repo "$repo" --add-label "needs-human-review"
