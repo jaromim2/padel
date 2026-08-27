@@ -226,12 +226,15 @@ jobs:
       - name: Prepare fix context
         id: context
         uses: actions/github-script@v8
+        env:
+          REVIEW_BODY_B64: ${{ github.event.inputs.review_body_b64 }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const isDispatch = context.eventName === 'workflow_dispatch';
             const triggerIssueNumber = isDispatch
               ? Number(context.payload.inputs.issue_number)
@@ -267,17 +270,26 @@ jobs:
               if (label === 'codex-tests-passed') testsPassed = true;
             }
             const nextAttempt = currentAttempt + 1;
-            const { data: comments } = await github.rest.issues.listComments({
-              owner,
-              repo,
-              issue_number: pr.number,
-              per_page: 100,
-            });
             const automatedMarker = '<!-- codex-automated-review -->';
-            const automatedReview = [...comments].reverse().find((comment) => comment.body && comment.body.includes(automatedMarker));
-            let reviewBody = automatedReview ? automatedReview.body.replace(automatedMarker, '').trim() : '';
+            let reviewBody = '';
+            for (let attempt = 1; attempt <= 5; attempt += 1) {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner,
+                repo,
+                issue_number: pr.number,
+                per_page: 100,
+              });
+              const automatedReview = [...comments]
+                .reverse()
+                .find((comment) => comment.body && comment.body.includes(automatedMarker));
+              reviewBody = automatedReview ? automatedReview.body.replace(automatedMarker, '').trim() : '';
+              if (reviewBody || !isDispatch) {
+                break;
+              }
+              await sleep(2000);
+            }
             if (!reviewBody && isDispatch) {
-              const encoded = context.payload.inputs.review_body_b64 || '';
+              const encoded = process.env.REVIEW_BODY_B64 || context.payload.inputs.review_body_b64 || '';
               reviewBody = encoded ? Buffer.from(encoded, 'base64').toString('utf8') : '';
             }
             if (!reviewBody) {
