@@ -64,5 +64,6 @@ PY
   exit 0
 fi
 
+node tests/match-frontend.test.js
 bash tests/wordpress-integration.sh
 echo "scope=app validation ok"
