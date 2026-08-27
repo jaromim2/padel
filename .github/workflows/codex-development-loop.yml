@@ -210,7 +210,7 @@ jobs:
       )
     runs-on: ubuntu-latest
     concurrency:
-      group: codex-pr-${{ github.event.issue.number }}
+      group: codex-pr-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.issue.number }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -261,29 +261,21 @@ jobs:
             const labels = (pr.labels || []).map((label) => label.name);
             let currentAttempt = 0;
             let testsPassed = false;
-            let blocked = false;
             for (const label of labels) {
               const match = label.match(/^codex-attempt-(\d+)$/);
               if (match) currentAttempt = Math.max(currentAttempt, Number(match[1]));
               if (label === 'codex-tests-passed') testsPassed = true;
-              if (label === 'needs-human-review') blocked = true;
             }
             const nextAttempt = currentAttempt + 1;
-            let reviewBody = '';
-            if (isDispatch) {
-              const encoded = context.payload.inputs.review_body_b64 || '';
-              reviewBody = encoded ? Buffer.from(encoded, 'base64').toString('utf8') : '';
-            } else {
-              const { data: comments } = await github.rest.issues.listComments({
-                owner,
-                repo,
-                issue_number: pr.number,
-                per_page: 100,
-              });
-              const automatedMarker = '<!-- codex-automated-review -->';
-              const automatedReview = [...comments].reverse().find((comment) => comment.body && comment.body.includes(automatedMarker));
-              reviewBody = automatedReview ? automatedReview.body.replace(automatedMarker, '').trim() : '';
-            }
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+            const automatedMarker = '<!-- codex-automated-review -->';
+            const automatedReview = [...comments].reverse().find((comment) => comment.body && comment.body.includes(automatedMarker));
+            const reviewBody = automatedReview ? automatedReview.body.replace(automatedMarker, '').trim() : '';
             if (!reviewBody) {
               core.setOutput('stop', '1');
               fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-stop.txt`, '1');
@@ -291,7 +283,7 @@ jobs:
               fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(pr.number));
               return;
             }
-            if (blocked || nextAttempt > 3) {
+            if (nextAttempt > 3) {
               core.setOutput('stop', '1');
               fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-stop.txt`, '1');
               fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issueNumber));
@@ -299,6 +291,28 @@ jobs:
               return;
             }
             core.setOutput('stop', '0');
+            const attemptLabels = labels.filter((label) => /^codex-attempt-\d+$/.test(label));
+            const labelsToClear = [...new Set([...attemptLabels, 'changes-requested', 'needs-human-review', 'codex-tests-passed'])];
+            const removeLabelIfPresent = async (issueNumberToUpdate, label) => {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issueNumberToUpdate,
+                  name: label,
+                });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              }
+            };
+            for (const label of labelsToClear) {
+              await removeLabelIfPresent(pr.number, label);
+              if (issueNumber !== pr.number) {
+                await removeLabelIfPresent(issueNumber, label);
+              }
+            }
             await github.rest.issues.addLabels({
               owner,
               repo,
@@ -335,7 +349,7 @@ jobs:
               '- Re-run the relevant tests before pushing.',
               '- Do not expose secrets or private URLs.',
             ].join('\n');
-            const promptPath = `${process.env.RUNNER_TEMP}/codex-review-fix-${pr.number}.md`;
+            const promptPath = `${process.env.RUNNER_TEMP}/codex-review-fix.md`;
             fs.writeFileSync(promptPath, prompt);
             fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issueNumber));
             fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(pr.number));
@@ -362,7 +376,7 @@ jobs:
           GH_TOKEN: ""
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          prompt-file: ${{ runner.temp }}/codex-review-fix-${{ github.event.issue.number }}.md
+          prompt-file: ${{ runner.temp }}/codex-review-fix.md
 
       - name: Determine relevant tests
         if: steps.context.outputs.stop != '1'
@@ -400,6 +414,7 @@ jobs:
         run: |
           set -euo pipefail
           branch="$(cat "$RUNNER_TEMP/codex-branch.txt")"
+          pr_number="$(cat "$RUNNER_TEMP/codex-pr-number.txt")"
           issue_number="$(cat "$RUNNER_TEMP/codex-issue-number.txt")"
           attempt="$(cat "$RUNNER_TEMP/codex-next-attempt.txt")"
           git config user.name "codex[bot]"
@@ -413,5 +428,5 @@ jobs:
           fi
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
           git push --force-with-lease origin "$branch"
-          gh pr edit "${{ github.event.issue.number }}" --repo "$GITHUB_REPOSITORY" --add-label "codex-attempt-$attempt" --add-label "codex-tests-passed" --remove-label "changes-requested"
-          gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --add-label "codex-tests-passed" --remove-label "changes-requested"
+          gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" --add-label "codex-attempt-$attempt" --add-label "codex-tests-passed" --remove-label "changes-requested" --remove-label "needs-human-review"
+          gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --add-label "codex-tests-passed" --remove-label "changes-requested" --remove-label "needs-human-review"

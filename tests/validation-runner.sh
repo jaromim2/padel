@@ -8,9 +8,15 @@ cd "$ROOT"
 mapfile -t changed_files < <(git status --porcelain=v1 | awk '{print $2}' | sed '/^$/d')
 
 scope="docs"
+retry_workflow_changed=0
 for file in "${changed_files[@]}"; do
   case "$file" in
     docs/*|AGENTS.md|.github/workflows/*)
+      case "$file" in
+        .github/workflows/codex-development-loop.yml|.github/workflows/codex-review.yml)
+          retry_workflow_changed=1
+          ;;
+      esac
       ;;
     *)
       scope="app"
@@ -39,6 +45,10 @@ for raw in sys.argv[1:]:
     yaml.safe_load(path.read_text())
     print(f"yaml ok: {path}")
 PY
+fi
+
+if [ "$retry_workflow_changed" -eq 1 ]; then
+  bash tests/codex-retry-state-machine.sh
 fi
 
 git diff --check
