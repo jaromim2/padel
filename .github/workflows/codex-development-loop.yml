@@ -17,6 +17,10 @@ on:
         description: PR number to fix
         required: true
         type: string
+      review_body_b64:
+        description: Base64-encoded automated review comment body
+        required: false
+        type: string
 
 permissions: {}
 
@@ -254,12 +258,7 @@ jobs:
               core.setFailed('Unable to determine issue number from pull request body.');
               return;
             }
-            const { data: currentPr } = await github.rest.pulls.get({
-              owner,
-              repo,
-              pull_number: pr.number,
-            });
-            const labels = (currentPr.labels || []).map((label) => label.name);
+            const labels = (pr.labels || []).map((label) => label.name);
             let currentAttempt = 0;
             let testsPassed = false;
             let blocked = false;
@@ -270,15 +269,21 @@ jobs:
               if (label === 'needs-human-review') blocked = true;
             }
             const nextAttempt = currentAttempt + 1;
-            const { data: comments } = await github.rest.issues.listComments({
-              owner,
-              repo,
-              issue_number: pr.number,
-              per_page: 100,
-            });
-            const automatedMarker = '<!-- codex-automated-review -->';
-            const automatedReview = [...comments].reverse().find((comment) => comment.body && comment.body.includes(automatedMarker));
-            const reviewBody = automatedReview ? automatedReview.body.replace(automatedMarker, '').trim() : '';
+            let reviewBody = '';
+            if (isDispatch) {
+              const encoded = context.payload.inputs.review_body_b64 || '';
+              reviewBody = encoded ? Buffer.from(encoded, 'base64').toString('utf8') : '';
+            } else {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner,
+                repo,
+                issue_number: pr.number,
+                per_page: 100,
+              });
+              const automatedMarker = '<!-- codex-automated-review -->';
+              const automatedReview = [...comments].reverse().find((comment) => comment.body && comment.body.includes(automatedMarker));
+              reviewBody = automatedReview ? automatedReview.body.replace(automatedMarker, '').trim() : '';
+            }
             if (!reviewBody) {
               core.setOutput('stop', '1');
               fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-stop.txt`, '1');
