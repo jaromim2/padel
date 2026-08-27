@@ -3,8 +3,6 @@ name: Codex Development Loop
 on:
   issues:
     types: [labeled]
-  pull_request_review:
-    types: [submitted]
 
 permissions: {}
 
@@ -170,24 +168,25 @@ jobs:
           EOF
           )
           if [ -n "$existing_pr" ]; then
-            gh pr edit "$existing_pr" --title "$title" --body "$body" --add-label "codex-attempt-$attempt" --add-label "codex-tests-passed"
-            gh issue edit "$issue_number" --add-label "codex-tests-passed"
+            gh pr edit "$existing_pr" --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" --add-label "codex-attempt-$attempt" --add-label "codex-tests-passed"
+            gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --add-label "codex-tests-passed"
           else
-            gh pr create --title "$title" --body "$body" --head "$branch" --base "${{ github.event.repository.default_branch }}" --label "codex-attempt-$attempt" --label "codex-tests-passed"
-            pr_number="$(gh pr list --head "$branch" --json number --jq '.[0].number')"
-            gh issue edit "$issue_number" --add-label "codex-tests-passed"
+            gh pr create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" --head "$branch" --base "${{ github.event.repository.default_branch }}" --label "codex-attempt-$attempt" --label "codex-tests-passed"
+            pr_number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --json number --jq '.[0].number')"
+            gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --add-label "codex-tests-passed"
             echo "Created PR #$pr_number"
           fi
 
   fix_after_review:
     if: >
-      github.event_name == 'pull_request_review' &&
-      github.event.review.state == 'changes_requested' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.base.repo.full_name == github.repository
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'changes-requested' &&
+      github.event.issue.pull_request != null &&
+      github.event.repository.full_name == github.repository
     runs-on: ubuntu-latest
     concurrency:
-      group: codex-pr-${{ github.event.pull_request.number }}
+      group: codex-pr-${{ github.event.issue.number }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -207,9 +206,21 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
-            const pr = context.payload.pull_request;
+            const issue = context.payload.issue;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: issue.number,
+            });
+            if (pr.head.repo.full_name !== github.repository || pr.base.repo.full_name !== github.repository) {
+              core.setOutput('stop', '1');
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-stop.txt`, '1');
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issue.number));
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(issue.number));
+              return;
+            }
             const body = pr.body || '';
             const issueMatch = body.match(/Codex issue:\s*#(\d+)/i);
             const issueNumber = issueMatch ? Number(issueMatch[1]) : null;
@@ -233,6 +244,22 @@ jobs:
               if (label === 'needs-human-review') blocked = true;
             }
             const nextAttempt = currentAttempt + 1;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+            const automatedMarker = '<!-- codex-automated-review -->';
+            const automatedReview = [...comments].reverse().find((comment) => comment.body && comment.body.includes(automatedMarker));
+            const reviewBody = automatedReview ? automatedReview.body.replace(automatedMarker, '').trim() : '';
+            if (!reviewBody) {
+              core.setOutput('stop', '1');
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-stop.txt`, '1');
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-issue-number.txt`, String(issueNumber));
+              fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-pr-number.txt`, String(pr.number));
+              return;
+            }
             if (blocked || nextAttempt > 3) {
               core.setOutput('stop', '1');
               fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-stop.txt`, '1');
@@ -269,7 +296,7 @@ jobs:
               fs.readFileSync('docs/PRODUCT.md', 'utf8'),
               '',
               'Review comments:',
-              context.payload.review.body || '',
+              reviewBody,
               '',
               'Fix requirements:',
               '- Address only the requested changes.',
@@ -292,8 +319,8 @@ jobs:
           set -euo pipefail
           pr_number="$(cat "$RUNNER_TEMP/codex-pr-number.txt")"
           issue_number="$(cat "$RUNNER_TEMP/codex-issue-number.txt")"
-          gh pr edit "$pr_number" --add-label "needs-human-review"
-          gh issue edit "$issue_number" --add-label "needs-human-review"
+          gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" --add-label "needs-human-review" --remove-label "changes-requested"
+          gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --add-label "needs-human-review" --remove-label "changes-requested"
           exit 1
 
       - name: Run Codex fix
@@ -304,7 +331,7 @@ jobs:
           GH_TOKEN: ""
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          prompt-file: ${{ runner.temp }}/codex-review-fix-${{ github.event.pull_request.number }}.md
+          prompt-file: ${{ runner.temp }}/codex-review-fix-${{ github.event.issue.number }}.md
 
       - name: Determine relevant tests
         if: steps.context.outputs.stop != '1'
@@ -329,8 +356,8 @@ jobs:
           attempt="$(cat "$RUNNER_TEMP/codex-next-attempt.txt")"
           if [ "${{ steps.tests.outcome }}" != "success" ]; then
             if [ "$attempt" -ge 3 ]; then
-              gh pr edit "$pr_number" --add-label "needs-human-review"
-              gh issue edit "$issue_number" --add-label "needs-human-review"
+              gh pr edit "$pr_number" --repo "$GITHUB_REPOSITORY" --add-label "needs-human-review" --remove-label "changes-requested"
+              gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --add-label "needs-human-review" --remove-label "changes-requested"
             fi
             exit 1
           fi
@@ -355,5 +382,5 @@ jobs:
           fi
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
           git push --force-with-lease origin "$branch"
-          gh pr edit "${{ github.event.pull_request.number }}" --add-label "codex-attempt-$attempt" --add-label "codex-tests-passed"
-          gh issue edit "$issue_number" --add-label "codex-tests-passed"
+          gh pr edit "${{ github.event.issue.number }}" --repo "$GITHUB_REPOSITORY" --add-label "codex-attempt-$attempt" --add-label "codex-tests-passed" --remove-label "changes-requested"
+          gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --add-label "codex-tests-passed" --remove-label "changes-requested"
