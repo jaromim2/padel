@@ -2,6 +2,9 @@
 
 This repository uses Codex for controlled implementation and review.
 
+## Automation smoke test
+The automated Codex development loop was validated with a harmless documentation-only task.
+
 ## Implementation loop
 - Trigger implementation work when a GitHub Issue receives the `codex-ready` label.
 - Read `AGENTS.md`, `docs/PRODUCT.md`, and the issue content before editing.
