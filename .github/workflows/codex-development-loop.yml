@@ -275,7 +275,11 @@ jobs:
             });
             const automatedMarker = '<!-- codex-automated-review -->';
             const automatedReview = [...comments].reverse().find((comment) => comment.body && comment.body.includes(automatedMarker));
-            const reviewBody = automatedReview ? automatedReview.body.replace(automatedMarker, '').trim() : '';
+            let reviewBody = automatedReview ? automatedReview.body.replace(automatedMarker, '').trim() : '';
+            if (!reviewBody && isDispatch) {
+              const encoded = context.payload.inputs.review_body_b64 || '';
+              reviewBody = encoded ? Buffer.from(encoded, 'base64').toString('utf8') : '';
+            }
             if (!reviewBody) {
               core.setOutput('stop', '1');
               fs.writeFileSync(`${process.env.RUNNER_TEMP}/codex-stop.txt`, '1');
