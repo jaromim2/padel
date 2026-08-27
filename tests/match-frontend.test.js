@@ -24,4 +24,10 @@ assert.ok(confirm < disclosure, 'alternate frames should be secondary to confirm
 assert.match(source, /<summary>Can't see yourself\? Choose another frame<\/summary>/);
 assert.match(source, /frames\.length > 1 && !selectionLocked/);
 
+assert.match(source, /data-unlocks-stroke-candidates="1"/);
+assert.match(source, /data-stroke-candidates hidden/);
+assert.match(source, /element\.tagName === 'VIDEO' \? 'loadeddata' : 'load'/);
+assert.match(source, /candidates\.hidden = false/);
+assert.match(source, /!candidates\.length \|\| !hasTrackingPreview/);
+
 console.log('match frontend validation ok');

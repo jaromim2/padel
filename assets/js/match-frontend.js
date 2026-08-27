@@ -178,6 +178,15 @@
     if (!artifactUrl) return;
 
     element.dataset.loaded = '1';
+    if (element.dataset.unlocksStrokeCandidates === '1') {
+      const revealStrokeCandidates = () => {
+        const candidates = element.closest('.padel-match-card')?.querySelector('[data-stroke-candidates]');
+        if (candidates) {
+          candidates.hidden = false;
+        }
+      };
+      element.addEventListener(element.tagName === 'VIDEO' ? 'loadeddata' : 'load', revealStrokeCandidates, { once: true });
+    }
     const fallbackToBlob = async () => {
       try {
         const response = await fetch(artifactUrl, {
@@ -262,11 +271,11 @@
         </div>
         ${trackingVideo ? `
           <div class="padel-match-preview padel-tracking-preview">
-            <video class="padel-protected-video padel-tracking-video padel-protected-media" controls preload="none" playsinline data-artifact-url="${escapeHtml(buildArtifactUrl(record.id, 'tracking-preview-video'))}"></video>
+            <video class="padel-protected-video padel-tracking-video padel-protected-media" controls preload="none" playsinline data-unlocks-stroke-candidates="1" data-artifact-url="${escapeHtml(buildArtifactUrl(record.id, 'tracking-preview-video'))}"></video>
           </div>
         ` : trackingImage ? `
           <div class="padel-match-preview padel-tracking-preview">
-            <img class="padel-match-preview-image padel-protected-media" data-artifact-url="${escapeHtml(buildArtifactUrl(record.id, 'tracking-preview'))}" alt="Tracking preview">
+            <img class="padel-match-preview-image padel-protected-media" data-unlocks-stroke-candidates="1" data-artifact-url="${escapeHtml(buildArtifactUrl(record.id, 'tracking-preview'))}" alt="Tracking preview">
           </div>
         ` : ''}
         ${intervals.length ? `<p class="padel-help-note">${escapeHtml(intervals.map((interval) => `${interval.start_frame}-${interval.end_frame}${interval.reason ? ` (${interval.reason})` : ''}`).join(' · '))}</p>` : ''}
@@ -307,10 +316,12 @@
 
   function renderCandidates(record, match) {
     const candidates = Array.isArray(match?.stroke_candidates) ? match.stroke_candidates : [];
-    if (!candidates.length) return '';
+    const artifacts = match?.artifacts || {};
+    const hasTrackingPreview = Boolean(artifacts.tracking_preview_video || artifacts.tracking_preview_image);
+    if (!candidates.length || !hasTrackingPreview) return '';
 
     return `
-      <section class="padel-result-section">
+      <section class="padel-result-section" data-stroke-candidates hidden>
         <h4>Stroke candidates</h4>
         <div class="padel-match-candidate-grid">
           ${candidates.map((candidate) => renderCandidateCard(record, candidate)).join('')}
