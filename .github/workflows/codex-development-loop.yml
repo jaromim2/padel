@@ -1,8 +1,8 @@
 name: Codex Development Loop
 
 on:
-  issues:
-    types: [labeled]
+  # Automatic issue triggers are intentionally disabled to protect API usage.
+  # Run this workflow manually only when a bounded Codex task is explicitly approved.
   workflow_dispatch:
     inputs:
       mode:
